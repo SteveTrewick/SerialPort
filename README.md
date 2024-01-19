@@ -171,7 +171,7 @@ port.stream.cancel() {
 
 ## Reset
 
-If you need to reset the options on the port to ehatever they were when you got it
+If you need to reset the options on the port to whatever they were when you got it
 
 ```swift
 
