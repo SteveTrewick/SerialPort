@@ -4,7 +4,7 @@ import Foundation
 import IOKit
 import IOKit.serial
 
-import Trace
+@_exported import Trace
 
 
 public struct SerialDevice {
