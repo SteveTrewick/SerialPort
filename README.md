@@ -8,7 +8,7 @@ it might work on iOS, dunno, haven't tried, maybe for bluetooth? Won't work on l
 
 Start by initing a PortManager, this will aloow you to enumerate and open serial ports.
 
-```
+```swift
 
 import SerialPort
 
@@ -18,7 +18,7 @@ let manager = PortManager()
 
 If you happen to know the path of your serial port, just go ahead and
 
-```
+```swift
 let result = manager.open(path: "/dev/cu....")
 
 switch result {
@@ -29,7 +29,7 @@ switch result {
 
 If you want to have a look see what serial ports are available on your mac, do ...
 
-```
+```swift
 
 let result = manager.enumeratePorts()
 
@@ -42,7 +42,7 @@ switch result {
 
 If this succedds (and it should) you will get an array of ```SerialDevice``` which looks like this :
 
-```
+```swift
 
 [
   SerialDevice ( basename: "Bluetooth-Incoming-Port",
@@ -61,7 +61,7 @@ If this succedds (and it should) you will get an array of ```SerialDevice``` whi
 
 Choose which one you want, ask the user, w/e, then fling it at the manager thus ...
 
-```
+```swift
 
 let result = manager.open(device: device)
 
@@ -79,7 +79,7 @@ Now you will need to configure it.
 
 For brevity, I will just show you the options struct, which by default will set up as 9600 8N1, as is tradition
 
-```
+```swift
 
 public struct SerialConfig {
   public var baud     : BaudRate = .baud_9600   // default 9600 8N1, as is tradition
@@ -93,7 +93,7 @@ public struct SerialConfig {
 
 Set whatever of the available options you need and then fling them at the port instance
 
-```
+```swift
 port.configure(config: serialConfig)
 
 ```
@@ -116,7 +116,7 @@ port.configure(options: options)
 
 This is the easy part ...
 
-```
+```swift
 
 let bytes : Data = // ...
 
@@ -126,7 +126,7 @@ port.send(data: bytes)
 
 If you actually need to know if that worked, or why it didn't ...
 
-```
+```swift
 
 port.send(data: bytes) { result in 
   switch result {
@@ -142,7 +142,7 @@ port.send(data: bytes) { result in
 
 You'll like this, I promise.
 
-```
+```swift
 
 port.stream.handler = { result in 
   switch result {
@@ -168,7 +168,7 @@ port.stream.cancel() {
 
 If you need to reset the options on the port to ehatever they were when you got it
 
-```
+```swift
 
 port.reset()
 
