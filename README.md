@@ -4,6 +4,11 @@ A package for opening, configuring, reading from and writing to a serial port in
 it might work on iOS, dunno, haven't tried, maybe for bluetooth? Won't work on linux as is.
 
 
+This is an incomplete implementation as of the yet, particularly with regards to the full set of termios options
+and is highly experimental. Honestly, this whole thing got way out of hand while I was just building something to
+fling a couple of bytes at an Arduino so that I can trigger a radio PTT.
+ 
+
 ## PortManager
 
 Start by initing a PortManager, this will aloow you to enumerate and open serial ports.
@@ -176,9 +181,109 @@ port.reset()
 
 ## Example
 
+I just happen to have an Arduino sitting on my USB hub that is running a banner and echo sketch,
+and yes, that's the extent of my testing so far. Let's send it some data ...
+
 ```swift
 
+import Foundation
+import SerialPort
 
+
+let manager = PortManager()
+var serial  : SerialPort
+
+
+// I happen to know the path to my Arduino, which is sat listening for incoming connections
+// and echoes back anything we send it so let's just use that
+
+switch manager.open(path: "/dev/cu.usbserial-142120") {
+  case .failure(let trace): print(trace); exit(1)
+  case .success(let port ): serial = port
+}
+
+
+// we can just use default 9600 N81, and raw mode, but let's set the opts explicitly anyway
+
+var config = SerialConfig (
+  baud    : .baud_9600,
+  databits: .eight,
+  parity  : .none,
+  stopbits: .one,
+  linemode: .raw
+)
+
+serial.configure(config: config)
+
+
+// set up the handler for reading the data, like, IRL this goes somewhere
+// but for the sake of demonstration, let's just print it
+
+serial.stream.handler = { result in
+  switch result {
+    case .failure(let trace) : print(trace); exit(1)
+    case .success(let data ) : print( String(data: data, encoding: .ascii) ?? "[failed]", terminator: "" )
+  }
+}
+
+// start chooching
+serial.stream.resume()
+
+// we'll wait a bit before we say hi, or the main loop won't have started.
+// on the arduino echo program and our dispatch handler also needs some time
+
+DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+  serial.send(data: "hi there!\n".data(using: .ascii)! ) { result in
+    switch result {
+      case .failure(let trace) : print(trace); exit(1)
+      case .success(let count) : print("sent \(count) bytes")
+    }
+  }
+  
+  // of course, we can just do this and not care about the error...
+  serial.send(data: "I dont care!".data(using: .ascii)!)
+  
+}
+
+
+dispatchMain() // run 4 eva
+
+
+```
+
+That produces the following output on my console
+
+```
+CONNECT 9600
+Hello! This is Arduino
+
+Type and I will echo -> 
+
+sent 10 bytes
+hi there!
+I dont care!
+```
+
+And if you're that interested, here is the Arduino code ...
+
+```C++
+
+#include <Arduino.h>
+
+
+void setup() {
+  Serial.begin(9600);
+  Serial.println("CONNECT 9600\r\nHello! This is Arduino\r\n");  
+  Serial.println("Type and I will echo -> \r\n");  
+}
+
+void loop() {
+  while (Serial.available() > 0) {
+    char byte = Serial.read();
+    Serial.write(byte);
+  }
+
+}
 
 ```
 
