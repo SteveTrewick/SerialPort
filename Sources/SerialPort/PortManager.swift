@@ -7,7 +7,15 @@ import IOKit.serial
 import Trace
 
 
-public class TTYManager {
+public struct SerialDevice {
+  public let basename : String
+  public let cu       : String?
+  public let tty      : String?
+}
+
+
+
+public class PortManager {
   
   
   // open a port.
@@ -16,17 +24,17 @@ public class TTYManager {
   
   // if you already know the path ...
   
-  public func open(path: String) -> Result<TTY, Trace> {
+  public func open(path: String) -> Result<SerialPort, Trace> {
     
     let descriptor = Darwin.open(path, O_RDWR | O_NOCTTY | O_NONBLOCK)
     
     if descriptor == -1 { return .failure( .posix(self, tag: "serial open") ) }
-    else                { return .success( TTY(descriptor: descriptor)) }
+    else                { return .success( SerialPort(descriptor: descriptor)) }
   }
   
   
   // if you have an enumerated device ...
-  public func open(device: SerialDevice) -> Result<TTY, Trace> {
+  public func open(device: SerialDevice) -> Result<SerialPort, Trace> {
     
     // if the device has a cu listing, we should probably use it,
     // if not, try the tty path

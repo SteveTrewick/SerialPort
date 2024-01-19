@@ -4,7 +4,7 @@ import PosixInputStream
 
  
 
-public class TTY {
+public class SerialPort {
   
   public  let descriptor  : Int32
   private let operationQ = DispatchQueue(label: "SerialPortOpQ")
