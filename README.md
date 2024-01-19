@@ -101,7 +101,7 @@ port.configure(config: serialConfig)
 If the available options aren't enough, and frankly they probably aren't at this stage, 
 you can grab the existing termios config, bit bang it and send it back, thusly
 
-```
+```swift
 
 var opts = port.options
 
