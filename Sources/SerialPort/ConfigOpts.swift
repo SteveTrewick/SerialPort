@@ -114,9 +114,21 @@ public enum LineMode {
 // now we bundle them up into here
 
 public struct SerialConfig {
+  
   public var baud     : BaudRate = .baud_9600   // default 9600 8N1, as is tradition
   public var databits : DataBits = .eight
   public var parity   : Parity   = .none
   public var stopbits : StopBits = .one
   public var linemode : LineMode = .raw
+  
+  public init() {}
+  
+  public init(baud: BaudRate, databits: DataBits, parity: Parity, stopbits: StopBits, linemode: LineMode) {
+    self.baud     = baud
+    self.databits = databits
+    self.parity   = parity
+    self.stopbits = stopbits
+    self.linemode = linemode
+  }
+  
 }
