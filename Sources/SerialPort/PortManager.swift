@@ -49,8 +49,7 @@ public class PortManager {
     OK, strap in.
       1) We use IOKit to enumerate serial ports, this will not work on linux.
          If you need linux compat, either use one of the many (two?) other swift
-         packages or feel free to add it. On macOS and especially iOS, there's
-         basically no chance we get anywjere near the /dev/ path hierarchy
+         packages or feel free to add it.
    
       2) There will be those who say "but Steve [it me!], IOKit won't work with
          muh virtual TTY cuz only muh /dev/cu*. This is not true, as we will see,
