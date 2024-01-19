@@ -18,6 +18,8 @@ public struct SerialDevice {
 public class PortManager {
   
   
+  public init() {} // god, I always foget these
+  
   // open a port.
   // notice that I am not giving the user a choice of options, this is on purpose
 
