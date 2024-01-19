@@ -173,3 +173,19 @@ If you need to reset the options on the port to ehatever they were when you got 
 port.reset()
 
 ```
+
+## Example
+
+```swift
+
+
+
+```
+
+## Dependencies
+
+SerialPort depends on three other packages, all of which it will export the symbols for. 
+They are [PosixInputStream](https://github.com/SteveTrewick/PosixInputStream) which 
+in turn depends on [PosixError](https://github.com/SteveTrewick/PosixError) which depends
+on [Trace](https://github.com/SteveTrewick/Trace) for the error handling base.
+ 
