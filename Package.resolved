@@ -6,8 +6,8 @@
         "repositoryURL": "https://github.com/SteveTrewick/PosixError",
         "state": {
           "branch": null,
-          "revision": "52d4a4fc42bba1ff9ed238cf04ba4536190d968b",
-          "version": "1.0.1"
+          "revision": "0f7dc4ead2def649f9adb9e28c11f33143cb8f5b",
+          "version": "1.0.2"
         }
       },
       {
@@ -15,8 +15,8 @@
         "repositoryURL": "https://github.com/SteveTrewick/PosixInputStream",
         "state": {
           "branch": null,
-          "revision": "d29495e9fed7e818d1d60f4fa2291f676ce82ddf",
-          "version": "1.0.3"
+          "revision": "b86773d28febc11d49ddac6c3b312c658805d1a8",
+          "version": "1.0.4"
         }
       },
       {
@@ -24,8 +24,8 @@
         "repositoryURL": "https://github.com/SteveTrewick/Trace",
         "state": {
           "branch": null,
-          "revision": "c20fbce6887d4c66bac023cbddab6ce29a7f831a",
-          "version": "1.0.2"
+          "revision": "e60de86d22afc6e1d0f68bbfb5fdbb5ffc5fbed3",
+          "version": "1.0.3"
         }
       }
     ]
