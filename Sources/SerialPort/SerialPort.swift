@@ -13,7 +13,7 @@ public class SerialPort {
                       var origoptions  = termios()
   
   
-  public let stream : PosixInputStream  // yes, yes I did just expose that as API.
+  public let stream : PosixInputStream  // yes, yes I did just expose that as an API.
   
   
   public init(descriptor: Int32) {
@@ -117,6 +117,6 @@ public class SerialPort {
     }
   }
   
-  
+  // yes, there is no read, that happens through the stream. see README.md
 }
 
