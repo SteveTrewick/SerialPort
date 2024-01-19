@@ -6,14 +6,18 @@ import PosixInputStream
 
 public class SerialPort {
   
+  
   public  let descriptor  : Int32
   private let operationQ = DispatchQueue(label: "SerialPortOpQ")
+  
   
   private(set) public var options      = termios()
                       var origoptions  = termios()
   
   
   public let stream : PosixInputStream  // yes, yes I did just expose that as an API.
+  
+  
   
   
   public init(descriptor: Int32) {
@@ -27,6 +31,8 @@ public class SerialPort {
   }
   
   
+  
+  // bung a config struct in here with your selected options
   
   public func configure(config: SerialConfig) {
     
@@ -70,6 +76,7 @@ public class SerialPort {
   }
   
   
+  
   // until we add the rest of the config opts, we can bounce through
   // termios, but if you find yourself doing this, you should be adding
   // proper config opts. m'kay?
@@ -91,7 +98,7 @@ public class SerialPort {
   
   
   
-  // reset by applying the original setting that the port came with
+  // reset by applying the original settings that the port came with
   
   public func reset() {
     tcsetattr(descriptor, TCSANOW, &origoptions)
