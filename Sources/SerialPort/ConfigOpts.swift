@@ -33,14 +33,21 @@ public enum BaudRate : CaseIterable {
     case baud_1800
     case baud_2400
     case baud_4800
+#if !os(Linux)
+    // Intermediate baud rates such as 7200 are Darwin-specific and are not exposed on Linux.
     case baud_7200
+#endif
     case baud_9600
     case baud_19200
     case baud_38400
+#if !os(Linux)
     case baud_14400
     case baud_28800
+#endif
     case baud_57600
+#if !os(Linux)
     case baud_76800
+#endif
     case baud_115200
     case baud_230400
   
@@ -60,14 +67,20 @@ public enum BaudRate : CaseIterable {
             case .baud_1800   : return speed_t(B1800)
             case .baud_2400   : return speed_t(B2400)
             case .baud_4800   : return speed_t(B4800)
+#if !os(Linux)
             case .baud_7200   : return speed_t(B7200)
+#endif
             case .baud_9600   : return speed_t(B9600)
             case .baud_19200  : return speed_t(B19200)
             case .baud_38400  : return speed_t(B38400)
+#if !os(Linux)
             case .baud_14400  : return speed_t(B14400)
             case .baud_28800  : return speed_t(B28800)
+#endif
             case .baud_57600  : return speed_t(B57600)
+#if !os(Linux)
             case .baud_76800  : return speed_t(B76800)
+#endif
             case .baud_115200 : return speed_t(B115200)
             case .baud_230400 : return speed_t(B230400)
         }

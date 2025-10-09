@@ -22,5 +22,8 @@ let package = Package(
         .target(
             name: "SerialPort",
             dependencies: ["PosixInputStream"]),
+        .testTarget(
+            name: "SerialPortTests",
+            dependencies: ["SerialPort"]),
     ]
 )
