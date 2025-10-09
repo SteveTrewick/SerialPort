@@ -19,6 +19,12 @@ public enum SyncReadError: Error {
   case trace(Trace)
 }
 
+public enum SyncWriteError: Error {
+  case timeout
+  case closed
+  case trace(Trace)
+}
+
 public extension SerialPort {
 
   /// Reads exactly `count` bytes, waiting for the descriptor to become
@@ -188,6 +194,71 @@ public extension SerialPort {
       return .failure(.trace(.posix(self, tag: "serial read")))
     }
   }
+
+
+  /// Writes the provided data buffer to the serial port, blocking until the
+  /// bytes have been transmitted or an error occurs. The optional timeout is
+  /// applied to each wait for the descriptor to become writable.
+  ///
+  /// - Parameters:
+  ///   - data: The payload to send. An empty buffer succeeds immediately.
+  ///   - timeout: Optional time interval that bounds how long the method waits
+  ///              for the descriptor to become writable.
+  /// - Returns: The number of bytes written or a `SyncWriteError` that
+  ///            describes the failure.
+  func write(_ data: Data, timeout: TimeInterval? = nil) -> Result<Int, SyncWriteError> {
+
+    if data.isEmpty {
+      return .success(0)
+    }
+
+    let deadline = timeout.map { Date().addingTimeInterval($0) }
+
+    return data.withUnsafeBytes { pointer -> Result<Int, SyncWriteError> in
+      guard let baseAddress = pointer.baseAddress else {
+        return .success(0)
+      }
+
+      var totalWritten = 0
+      let length = pointer.count
+
+      while totalWritten < length {
+        if let error = waitForWritable(deadline: deadline) {
+          return .failure(error)
+        }
+
+        let remaining = length - totalWritten
+        let wrote = posix_write(descriptor, baseAddress.advanced(by: totalWritten), remaining)
+
+        if wrote > 0 {
+          totalWritten += wrote
+          continue
+        }
+
+        if wrote == 0 {
+          return .failure(.closed)
+        }
+
+        if errno == EINTR {
+          continue
+        }
+
+        if errno == EAGAIN || errno == EWOULDBLOCK {
+          // Non-blocking descriptors may temporarily refuse additional bytes.
+          // Defer to the poll loop to wait for writability again.
+          continue
+        }
+
+        if errno == EPIPE || errno == EBADF {
+          return .failure(.closed)
+        }
+
+        return .failure(.trace(.posix(self, tag: "serial write")))
+      }
+
+      return .success(totalWritten)
+    }
+  }
 }
 
 
@@ -210,15 +281,15 @@ private extension SerialPort {
 
       let milliseconds = min(Int32.max, Int32(max(0, Int(ceil(remaining * 1000)))))
 
-      switch pollDescriptor(timeout: milliseconds) {
+      switch pollDescriptor(timeout: milliseconds, events: posix_POLLIN, tag: "serial read") {
       case .success(let ready) where ready > 0:
         return nil
       case .success:
         // The poll timed out without the descriptor becoming readable. Surface
         // the failure so callers can translate it to a higher-level timeout.
         return .timeout
-      case .failure(let error):
-        return error
+      case .failure(let trace):
+        return .trace(trace)
       }
     }
   }
@@ -228,20 +299,49 @@ private extension SerialPort {
   /// is ready to be read immediately.
   func pollImmediate() -> Result<Bool, SyncReadError> {
 
-    switch pollDescriptor(timeout: 0) {
+    switch pollDescriptor(timeout: 0, events: posix_POLLIN, tag: "serial read") {
     case .success(let ready):
       return .success(ready > 0)
-    case .failure(let error):
-      return .failure(error)
+    case .failure(let trace):
+      return .failure(.trace(trace))
+    }
+  }
+
+
+  /// Waits for the file descriptor to become writable or until the provided
+  /// deadline elapses. Returning `nil` indicates the descriptor is ready.
+  func waitForWritable(deadline: Date?) -> SyncWriteError? {
+
+    guard let deadline = deadline else {
+      return nil
+    }
+
+    while true {
+      let remaining = deadline.timeIntervalSinceNow
+
+      if remaining <= 0 {
+        return .timeout
+      }
+
+      let milliseconds = min(Int32.max, Int32(max(0, Int(ceil(remaining * 1000)))))
+
+      switch pollDescriptor(timeout: milliseconds, events: posix_POLLOUT, tag: "serial write") {
+      case .success(let ready) where ready > 0:
+        return nil
+      case .success:
+        return .timeout
+      case .failure(let trace):
+        return .trace(trace)
+      }
     }
   }
 
 
   /// Thin wrapper around `poll` that performs the standard EINTR retry loop and
   /// packages failures in a consistent trace structure.
-  func pollDescriptor(timeout milliseconds: Int32) -> Result<Int32, SyncReadError> {
+  func pollDescriptor(timeout milliseconds: Int32, events: Int16, tag: String) -> Result<Int32, Trace> {
 
-    var descriptorState = pollfd(fd: descriptor, events: posix_POLLIN, revents: 0)
+    var descriptorState = pollfd(fd: descriptor, events: events, revents: 0)
 
     while true {
       let ready = withUnsafeMutablePointer(to: &descriptorState) {
@@ -256,7 +356,7 @@ private extension SerialPort {
         continue
       }
 
-      return .failure(.trace(.posix(self, tag: "serial read")))
+      return .failure(.posix(self, tag: tag))
     }
   }
 }

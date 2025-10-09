@@ -241,7 +241,7 @@ port.stream.cancel() {
 ```
 
 
-## Synchronous Reading
+## Synchronous I/O
 
 Need to block the current thread until bytes arrive? Call the synchronous APIs
 and handle the `Result<Data, SyncReadError>` they return:
@@ -277,6 +277,22 @@ it arrives, with an option to retain the delimiter in the returned data:
 
 ```swift
 let line = port.read(until: 0x0A, includeDelimiter: true, timeout: 1)
+```
+
+Need to push bytes out on the calling thread? Use the synchronous write helper
+and handle the `Result<Int, SyncWriteError>`:
+
+```swift
+switch port.write(Data("OK".utf8), timeout: 1) {
+case .success(let count):
+  print("sent", count, "bytes")
+case .failure(.timeout):
+  print("the descriptor never became writable")
+case .failure(.closed):
+  print("the peer closed before the write completed")
+case .failure(.trace(let trace)):
+  print("posix error", trace)
+}
 ```
 
 Both helpers honor the timeout (and return `.failure(.timeout)` when nothing
