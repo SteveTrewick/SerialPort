@@ -200,36 +200,6 @@ port.send(data: bytes)
 
 ```
 
-## Buffered reading
-
-If you prefer to read from the port without wiring up your own stream handler, wrap
-the stream with a buffered reader:
-
-```swift
-let port: SerialPort = // ...
-let reader = port.makeBufferedReader()
-
-// read an exact number of bytes
-reader.read(count: 8) { result in
-  switch result {
-    case .success(let bytes):
-      print("received", bytes)
-    case .failure(let error):
-      print("read failed", error)
-  }
-}
-
-// read until a newline (and include it in the returned Data)
-reader.read(until: 0x0A, includeDelimiter: true) { result in
-  // handle the same way as above
-}
-```
-
-Both APIs accept an optional `DispatchTimeInterval` timeout. If you provide one,
-the completion handler receives `.failure(.timeout)` when the deadline passes
-without satisfying the request. When a timeout is omitted the read waits until
-enough bytes arrive.
-
 If you actually need to know if that worked, or why it didn't ...
 
 ```swift
@@ -269,6 +239,41 @@ port.stream.cancel() {
 }
 
 ```
+
+
+## Buffered reading
+
+Oh, you didn't like that, OK, well.
+
+If you prefer to read from the port without wiring up your own stream handler, wrap
+the stream with a buffered reader:
+
+```swift
+let port: SerialPort = // ...
+let reader = port.makeBufferedReader()
+
+// read an exact number of bytes
+reader.read(count: 8) { result in
+  switch result {
+    case .success(let bytes):
+      print("received", bytes)
+    case .failure(let error):
+      print("read failed", error)
+  }
+}
+
+// read until a newline (and include it in the returned Data)
+reader.read(until: 0x0A, includeDelimiter: true) { result in
+  // handle the same way as above
+}
+```
+
+Both APIs accept an optional `DispatchTimeInterval` timeout. If you provide one,
+the completion handler receives `.failure(.timeout)` when the deadline passes
+without satisfying the request. When a timeout is omitted the read waits until
+enough bytes arrive.
+
+
 
 ## Reset
 
