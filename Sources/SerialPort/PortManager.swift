@@ -1,8 +1,13 @@
 
 import Foundation
 
+#if os(Linux)
+import Glibc
+#else
+import Darwin
 import IOKit
 import IOKit.serial
+#endif
 
 @_exported import Trace
 
@@ -28,7 +33,7 @@ public class PortManager {
   
   public func open(path: String) -> Result<SerialPort, Trace> {
     
-    let descriptor = Darwin.open(path, O_RDWR | O_NOCTTY | O_NONBLOCK)
+    let descriptor = posixOpen(path, O_RDWR | O_NOCTTY | O_NONBLOCK)
     
     if descriptor == -1 { return .failure( .posix(self, tag: "serial open") ) }
     else                { return .success( SerialPort(descriptor: descriptor)) }
@@ -66,6 +71,11 @@ public class PortManager {
       4) Anyhooo ...
   */
   
+#if os(Linux)
+  public func enumeratePorts() -> Result<[SerialDevice], Trace> {
+    .failure(.trace(self, tag: "IOKit is unavailable on Linux"))
+  }
+#else
   public func enumeratePorts() -> Result<[SerialDevice], Trace> {
     
     var iterator : io_iterator_t  = 0
@@ -105,4 +115,5 @@ public class PortManager {
     
     return .success(devices)
   }
+#endif
 }

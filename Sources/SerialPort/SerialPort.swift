@@ -1,6 +1,24 @@
 import Foundation
 import PosixInputStream
 
+#if os(Linux)
+import Glibc
+private typealias PosixLib = Glibc
+#else
+import Darwin
+private typealias PosixLib = Darwin
+#endif
+
+@inlinable
+func posixClose(_ fd: Int32) -> Int32 {
+  PosixLib.close(fd)
+}
+
+@inlinable
+func posixOpen(_ path: String, _ oflag: Int32) -> Int32 {
+  path.withCString { PosixLib.open($0, oflag) }
+}
+
 
  
 
@@ -36,7 +54,12 @@ public class SerialPort {
   
   public func configure(config: SerialConfig) {
     
+    #if os(Linux)
+    cfsetispeed(&options, config.baud.speed)
+    cfsetospeed(&options, config.baud.speed)
+    #else
     cfsetspeed(&options, config.baud.speed)
+    #endif
     
     
     options.c_cflag &= ~UInt(CSIZE)
@@ -92,7 +115,7 @@ public class SerialPort {
     
     self.reset()              // just in case
     
-    Darwin.close(descriptor)  // technically this returns a vaule, but there's
+    posixClose(descriptor)  // technically this returns a vaule, but there's
                               // SFA we can do about it if it doesn't work. close more?
   }
   
