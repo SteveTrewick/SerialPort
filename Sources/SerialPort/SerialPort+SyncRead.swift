@@ -21,14 +21,17 @@ public enum SyncReadError: Error {
 
 public extension SerialPort {
 
-  func read(count: Int, timeout: TimeInterval? = nil) -> Result<Data, SyncReadError> {
-    precondition(count >= 0, "count must not be negative")
+  func read(count: UInt, timeout: TimeInterval? = nil) -> Result<Data, SyncReadError> {
 
     if count == 0 {
       return .success(Data())
     }
 
-    var buffer = [UInt8](repeating: 0, count: count)
+    guard let readCount = Int(exactly: count) else {
+      return .failure(.trace(.trace(self, tag: "serial read count overflow", context: count)))
+    }
+
+    var buffer = [UInt8](repeating: 0, count: readCount)
     let deadline = timeout.map { Date().addingTimeInterval($0) }
 
     while true {
@@ -64,7 +67,7 @@ public extension SerialPort {
 
       let bytesRead = buffer.withUnsafeMutableBytes { pointer -> Int in
         guard let baseAddress = pointer.baseAddress else { return 0 }
-        return systemRead(descriptor, baseAddress, count)
+        return systemRead(descriptor, baseAddress, readCount)
       }
 
       if bytesRead > 0 {
