@@ -389,7 +389,7 @@ final class SerialBufferedReaderTests: XCTestCase {
         }
     }
 
-    private final class PipeContext {
+    final class PipeContext {
         let serial: SerialPort
         let writer: FileHandle
 

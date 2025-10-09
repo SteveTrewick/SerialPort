@@ -241,6 +241,29 @@ port.stream.cancel() {
 ```
 
 
+## Synchronous reading
+
+Need to block the current thread until bytes arrive? Call the new synchronous
+API and handle the `Result<Data, SyncReadError>` it returns:
+
+```swift
+let port: SerialPort = // ...
+
+switch port.read(count: 16, timeout: 2) {
+case .success(let bytes):
+  print("received", bytes)
+case .failure(.timeout):
+  print("nothing arrived before the 2 second timeout")
+case .failure(.closed):
+  print("the other side closed the connection")
+case .failure(.trace(let trace)):
+  print("posix error", trace)
+}
+```
+
+When you omit the timeout the call blocks until bytes are ready, matching the
+behavior of a plain POSIX `read`.
+
 ## Buffered reading
 
 Oh, you didn't like that, OK, well.

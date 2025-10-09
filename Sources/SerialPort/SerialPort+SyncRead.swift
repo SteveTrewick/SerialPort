@@ -1,0 +1,85 @@
+import Foundation
+import Trace
+
+#if os(Linux)
+import Glibc
+private let systemRead = Glibc.read
+private let systemPoll = Glibc.poll
+private let pollEventIn = Int16(Glibc.POLLIN)
+#else
+import Darwin
+private let systemRead = Darwin.read
+private let systemPoll = Darwin.poll
+private let pollEventIn = Int16(Darwin.POLLIN)
+#endif
+
+public enum SyncReadError: Error {
+  case timeout
+  case closed
+  case trace(Trace)
+}
+
+public extension SerialPort {
+
+  func read(count: Int, timeout: TimeInterval? = nil) -> Result<Data, SyncReadError> {
+    precondition(count >= 0, "count must not be negative")
+
+    if count == 0 {
+      return .success(Data())
+    }
+
+    var buffer = [UInt8](repeating: 0, count: count)
+    let deadline = timeout.map { Date().addingTimeInterval($0) }
+
+    while true {
+      if let deadline = deadline {
+        while true {
+          let remaining = deadline.timeIntervalSinceNow
+
+          if remaining <= 0 {
+            return .failure(.timeout)
+          }
+
+          let milliseconds = min(Int32.max, Int32(max(0, Int(ceil(remaining * 1000)))))
+          var descriptorState = pollfd(fd: descriptor, events: pollEventIn, revents: 0)
+          let ready = withUnsafeMutablePointer(to: &descriptorState) {
+            systemPoll($0, nfds_t(1), milliseconds)
+          }
+
+          if ready > 0 {
+            break
+          }
+
+          if ready == 0 {
+            return .failure(.timeout)
+          }
+
+          if errno == EINTR {
+            continue
+          }
+
+          return .failure(.trace(.posix(self, tag: "serial read")))
+        }
+      }
+
+      let bytesRead = buffer.withUnsafeMutableBytes { pointer -> Int in
+        guard let baseAddress = pointer.baseAddress else { return 0 }
+        return systemRead(descriptor, baseAddress, count)
+      }
+
+      if bytesRead > 0 {
+        return .success(Data(bytes: buffer, count: bytesRead))
+      }
+
+      if bytesRead == 0 {
+        return .failure(.closed)
+      }
+
+      if errno == EINTR {
+        continue
+      }
+
+      return .failure(.trace(.posix(self, tag: "serial read")))
+    }
+  }
+}
