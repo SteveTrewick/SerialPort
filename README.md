@@ -241,7 +241,7 @@ port.stream.cancel() {
 ```
 
 
-## Synchronous reading
+## Synchronous Reading
 
 Need to block the current thread until bytes arrive? Call the synchronous APIs
 and handle the `Result<Data, SyncReadError>` they return:
@@ -282,9 +282,13 @@ let line = port.read(until: 0x0A, includeDelimiter: true, timeout: 1)
 Both helpers honor the timeout (and return `.failure(.timeout)` when nothing
 shows up in time) and report `.failure(.closed)` if the descriptor reaches EOF.
 
-## Buffered reading
+**NOTE** that if you are using the sync API you probably don't want anything 
+wired up to the `stream.handler` or you're gonna have a bad time.
 
-Oh, you didn't like that, OK, well.
+
+## Buffered Async Reading
+
+Oh, you didn't like that _either_, OK, well.
 
 If you prefer to read from the port without wiring up your own stream handler, wrap
 the stream with a buffered reader:
