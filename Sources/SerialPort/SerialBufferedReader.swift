@@ -55,9 +55,7 @@ public final class SerialBufferedReader {
 
   
   
-  public func read(count: Int,
-                   timeout: DispatchTimeInterval? = nil,
-                   completion: @escaping (Result<Data, ReadError>) -> Void) {
+  public func read ( count: Int, timeout: DispatchTimeInterval? = nil, completion: @escaping (Result<Data, ReadError>) -> Void ) {
 
     bufferQueue.async {
 
@@ -94,10 +92,7 @@ public final class SerialBufferedReader {
 
   
   
-  public func read(until delimiter: UInt8,
-                   includeDelimiter: Bool,
-                   timeout: DispatchTimeInterval? = nil,
-                   completion: @escaping (Result<Data, ReadError>) -> Void) {
+  public func read ( until delimiter: UInt8, includeDelimiter: Bool, timeout: DispatchTimeInterval? = nil, completion: @escaping (Result<Data, ReadError>) -> Void ) {
 
     bufferQueue.async {
 
@@ -131,8 +126,7 @@ public final class SerialBufferedReader {
 
   
   
-  public func readAvailable(timeout: DispatchTimeInterval? = nil,
-                            completion: @escaping (Result<Data, ReadError>) -> Void) {
+  public func read ( timeout: DispatchTimeInterval? = nil, completion: @escaping (Result<Data, ReadError>) -> Void ) {
 
     bufferQueue.async {
 

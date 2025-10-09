@@ -72,7 +72,7 @@ final class SerialBufferedReaderTests: XCTestCase {
 
         let expectation = expectation(description: "readAvailable returns buffered data")
 
-        reader.readAvailable { result in
+        reader.read { result in
             switch result {
             case .success(let data):
                 XCTAssertEqual(String(data: data, encoding: .utf8), "buffered")
@@ -103,7 +103,7 @@ final class SerialBufferedReaderTests: XCTestCase {
 
         let expectation = expectation(description: "readAvailable returns empty data")
 
-        reader.readAvailable { result in
+        reader.read { result in
             switch result {
             case .success(let data):
                 XCTAssertTrue(data.isEmpty)
@@ -191,7 +191,7 @@ final class SerialBufferedReaderTests: XCTestCase {
             countExpectation.fulfill()
         }
 
-        reader.readAvailable { result in
+        reader.read { result in
             switch result {
             case .success(let data):
                 XCTAssertTrue(data.isEmpty)
