@@ -13,13 +13,7 @@ import Trace
 // information when things go wrong.
 
 
-public enum SyncReadError: Error {
-  case timeout
-  case closed
-  case trace(Trace)
-}
-
-public enum SyncWriteError: Error {
+public enum SyncIOError: Error {
   case timeout
   case closed
   case trace(Trace)
@@ -37,8 +31,8 @@ public extension SerialPort {
   ///   - timeout: Optional time interval controlling how long the read will
   ///              block while waiting for the first byte of data.
   /// - Returns: A `Result` wrapping the data that was read or a
-  ///            `SyncReadError` describing the failure.
-  func read(count: UInt, timeout: TimeInterval? = nil) -> Result<Data, SyncReadError> {
+  ///            `SyncIOError` describing the failure.
+  func read(count: UInt, timeout: TimeInterval? = nil) -> Result<Data, SyncIOError> {
 
     if count == 0 { return .success(Data()) }
 
@@ -95,7 +89,7 @@ public extension SerialPort {
   /// - Parameter timeout: Optional deadline used to wait for the first byte.
   /// - Returns: A `Result` with all received bytes or an error that explains
   ///            why reading stopped prematurely.
-  func read(timeout: TimeInterval? = nil) -> Result<Data, SyncReadError> {
+  func read(timeout: TimeInterval? = nil) -> Result<Data, SyncIOError> {
 
     var collected = [UInt8]()
     let deadline = timeout.map { Date().addingTimeInterval($0) }
@@ -141,7 +135,7 @@ public extension SerialPort {
   /// Reads until a specific delimiter byte is encountered. The read can
   /// optionally include the delimiter in the resulting data and will respect an
   /// optional timeout while waiting for the first byte.
-  func read(until delimiter: UInt8, includeDelimiter: Bool, timeout: TimeInterval? = nil) -> Result<Data, SyncReadError> {
+  func read(until delimiter: UInt8, includeDelimiter: Bool, timeout: TimeInterval? = nil) -> Result<Data, SyncIOError> {
 
     var collected = [UInt8]()
     let deadline = timeout.map { Date().addingTimeInterval($0) }
@@ -187,15 +181,15 @@ public extension SerialPort {
   ///   - data: The payload to send. An empty buffer succeeds immediately.
   ///   - timeout: Optional time interval that bounds how long the method waits
   ///              for the descriptor to become writable.
-  /// - Returns: The number of bytes written or a `SyncWriteError` that
+  /// - Returns: The number of bytes written or a `SyncIOError` that
   ///            describes the failure.
-  func write(_ data: Data, timeout: TimeInterval? = nil) -> Result<Int, SyncWriteError> {
+  func write(_ data: Data, timeout: TimeInterval? = nil) -> Result<Int, SyncIOError> {
 
     if data.isEmpty { return .success(0) }
 
     let deadline = timeout.map { Date().addingTimeInterval($0) }
 
-    return data.withUnsafeBytes { pointer -> Result<Int, SyncWriteError> in
+    return data.withUnsafeBytes { pointer -> Result<Int, SyncIOError> in
       guard let baseAddress = pointer.baseAddress else { return .success(0) }
 
       var totalWritten = 0
@@ -258,7 +252,7 @@ private extension SerialPort {
 
   /// Waits for the file descriptor to become readable or until the provided
   /// deadline elapses. Returning `nil` indicates the descriptor is ready.
-  func waitForReadable(deadline: Date?) -> SyncReadError? {
+  func waitForReadable(deadline: Date?) -> SyncIOError? {
 
     switch waitForEvent ( deadline: deadline, events: posix_POLLIN, tag: "serial read" ) {
       case .ready               : return nil
@@ -270,7 +264,7 @@ private extension SerialPort {
 
   /// Polls the descriptor once with a zero timeout and indicates whether data
   /// is ready to be read immediately.
-  func pollImmediate() -> Result<Bool, SyncReadError> {
+  func pollImmediate() -> Result<Bool, SyncIOError> {
 
     switch pollDescriptor(timeout: 0, events: posix_POLLIN, tag: "serial read") {
       case .ready   : return .success(true)
@@ -282,7 +276,7 @@ private extension SerialPort {
 
   /// Waits for the file descriptor to become writable or until the provided
   /// deadline elapses. Returning `nil` indicates the descriptor is ready.
-  func waitForWritable(deadline: Date?) -> SyncWriteError? {
+  func waitForWritable(deadline: Date?) -> SyncIOError? {
 
     switch waitForEvent(deadline: deadline, events: posix_POLLOUT, tag: "serial write") {
       case .ready               : return nil
