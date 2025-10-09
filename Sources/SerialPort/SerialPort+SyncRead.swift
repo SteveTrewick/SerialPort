@@ -235,13 +235,13 @@ public extension SerialPort {
 
 private extension SerialPort {
 
-  private enum WaitResult {
+  private enum PollOutcome {
     case ready
     case timeout
     case trace(Trace)
   }
 
-  private func waitForEvent(deadline: Date?, events: Int16, tag: String) -> WaitResult {
+  private func waitForEvent(deadline: Date?, events: Int16, tag: String) -> PollOutcome {
 
     guard let deadline = deadline else { return .ready }
 
@@ -252,11 +252,7 @@ private extension SerialPort {
 
       let milliseconds = min(Int32.max, Int32(max(0, Int(ceil(remaining * 1000)))))
 
-      switch pollDescriptor(timeout: milliseconds, events: events, tag: tag) {
-        case .success ( let ready ) where ready > 0 : return .ready
-        case .success                               : return .timeout
-        case .failure ( let trace )                 : return .trace(trace)
-      }
+      return pollDescriptor(timeout: milliseconds, events: events, tag: tag)
     }
   }
 
@@ -277,8 +273,9 @@ private extension SerialPort {
   func pollImmediate() -> Result<Bool, SyncReadError> {
 
     switch pollDescriptor(timeout: 0, events: posix_POLLIN, tag: "serial read") {
-      case .success(let ready) : return .success(ready > 0)
-      case .failure(let trace) : return .failure(.trace(trace))
+      case .ready   : return .success(true)
+      case .timeout : return .success(false)
+      case .trace ( let trace ) : return .failure(.trace(trace))
     }
   }
 
@@ -297,18 +294,19 @@ private extension SerialPort {
 
   /// Thin wrapper around `poll` that performs the standard EINTR retry loop and
   /// packages failures in a consistent trace structure.
-  func pollDescriptor(timeout milliseconds: Int32, events: Int16, tag: String) -> Result<Int32, Trace> {
+  private func pollDescriptor(timeout milliseconds: Int32, events: Int16, tag: String) -> PollOutcome {
 
     var descriptorState = pollfd(fd: descriptor, events: events, revents: 0)
 
     while true {
       let ready = withUnsafeMutablePointer(to: &descriptorState) { posix_poll($0, nfds_t(1), milliseconds) }
 
-      if ready >= 0 { return .success(ready) }
+      if ready > 0  { return .ready }
+      if ready == 0 { return .timeout }
 
       if errno == EINTR { continue }
 
-      return .failure(.posix(self, tag: tag))
+      return .trace(.posix(self, tag: tag))
     }
   }
 }
