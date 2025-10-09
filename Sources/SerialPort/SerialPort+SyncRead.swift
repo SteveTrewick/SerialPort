@@ -13,10 +13,21 @@ import Trace
 // information when things go wrong.
 public extension SerialPort {
 
-  public enum SyncIOError: Error {
+   enum SyncIOError: Error {
+  
     case timeout
     case closed
-    case trace(Trace)
+    case error(Trace)
+  
+    internal static func from ( _ outcome: PollOutcome ) -> SyncIOError? {
+
+      switch outcome {
+        case .ready               : return nil
+        case .timeout             : return .timeout
+        case .error ( let trace ) : return .error ( trace )
+      }
+    }
+  
   }
 
   /// Reads exactly `count` bytes, waiting for the descriptor to become
@@ -39,7 +50,7 @@ public extension SerialPort {
       // represented as an Int. Passing a truncated value to `read` would result
       // in undefined behaviour, so we proactively bail out and surface a trace
       // describing the overflow.
-      return .failure(.trace(.trace(self, tag: "serial read count overflow", context: count)))
+      return .failure(.error(.trace(self, tag: "serial read count overflow", context: count)))
     }
 
     var buffer   = [UInt8](repeating: 0, count: readCount)
@@ -75,7 +86,7 @@ public extension SerialPort {
       // Any other errno value is captured in a Trace for visibility. We do not
       // attempt to translate every possible errno, instead leaving diagnosis to
       // the trace consumer.
-      return .failure(.trace(.posix(self, tag: "serial read")))
+      return .failure(.error(.posix(self, tag: "serial read")))
     }
   }
 
@@ -89,10 +100,10 @@ public extension SerialPort {
   ///            why reading stopped prematurely.
   func read(timeout: TimeInterval? = nil) -> Result<Data, SyncIOError> {
 
-    var collected = [UInt8]()
-    let deadline = timeout.map { Date().addingTimeInterval($0) }
+    var collected             = [UInt8]()
+    let deadline              = timeout.map { Date().addingTimeInterval($0) }
     var shouldWaitForDeadline = true
-    var buffer = [UInt8](repeating: 0, count: 1024)
+    var buffer                = [UInt8](repeating: 0, count: 1024)
 
     while true {
       if shouldWaitForDeadline {
@@ -103,9 +114,9 @@ public extension SerialPort {
         // delay. This allows us to coalesce consecutive reads into a single
         // logical payload while still terminating when the device becomes idle.
         switch pollImmediate() {
-          case .ready              : break
-          case .idle               : return .success(Data(collected))
-          case .error ( let error ) : return .failure(error)
+          case .ready               : break
+          case .idle                : return .success(Data(collected))
+          case .error ( let error ) : return .failure(.error(error))
         }
       }
 
@@ -125,7 +136,7 @@ public extension SerialPort {
 
       if errno == EINTR { continue }
 
-      return .failure(.trace(.posix(self, tag: "serial read")))
+      return .failure(.error(.posix(self, tag: "serial read")))
     }
   }
 
@@ -136,7 +147,7 @@ public extension SerialPort {
   func read(until delimiter: UInt8, includeDelimiter: Bool, timeout: TimeInterval? = nil) -> Result<Data, SyncIOError> {
 
     var collected = [UInt8]()
-    let deadline = timeout.map { Date().addingTimeInterval($0) }
+    let deadline  = timeout.map { Date().addingTimeInterval($0) }
 
     while true {
       if let error = waitForReadable(deadline: deadline) {
@@ -166,7 +177,7 @@ public extension SerialPort {
 
       if errno == EINTR { continue }
 
-      return .failure(.trace(.posix(self, tag: "serial read")))
+      return .failure(.error(.posix(self, tag: "serial read")))
     }
   }
 
@@ -216,7 +227,7 @@ public extension SerialPort {
 
         if errno == EPIPE || errno == EBADF { return .failure(.closed) }
 
-        return .failure(.trace(.posix(self, tag: "serial write")))
+        return .failure(.error(.posix(self, tag: "serial write")))
       }
 
       return .success(totalWritten)
@@ -225,43 +236,31 @@ public extension SerialPort {
 }
 
 
-private extension SerialPort {
+extension SerialPort {
 
-  private enum PollOutcome {
+  enum PollOutcome {
     case ready
     case timeout
-    case trace(Trace)
+    case error(Trace)
   }
 
-  private enum ImmediatePollOutcome {
+  
+  enum ImmediatePollOutcome {
+    
     case ready
     case idle
-    case error(SyncIOError)
-
-    init(outcome: PollOutcome) {
-
+    case error(Trace)
+    
+    static func from ( _ outcome: PollOutcome ) -> ImmediatePollOutcome {
       switch outcome {
-        case .ready               : self = .ready
-        case .timeout             : self = .idle
-        case .trace ( _ ) :
-          guard let error = SerialPort.syncIOError(from: outcome) else {
-            self = .ready
-            return
-          }
-
-          self = .error(error)
+        case .ready              : return .ready
+        case .timeout            : return .idle
+        case .error (let trace ) : return .error(trace)
       }
     }
   }
 
-  private static func syncIOError(from outcome: PollOutcome) -> SyncIOError? {
 
-    switch outcome {
-      case .ready               : return nil
-      case .timeout             : return .timeout
-      case .trace ( let trace ) : return .trace(trace)
-    }
-  }
 
   private func waitForEvent(deadline: Date?, events: Int16, tag: String) -> PollOutcome {
 
@@ -281,34 +280,27 @@ private extension SerialPort {
   /// Waits for the file descriptor to become readable or until the provided
   /// deadline elapses. Returning `nil` indicates the descriptor is ready.
   func waitForReadable(deadline: Date?) -> SyncIOError? {
-
-    let outcome = waitForEvent ( deadline: deadline, events: posix_POLLIN, tag: "serial read" )
-
-    switch outcome {
-      case .ready : return nil
-      default     : return SerialPort.syncIOError(from: outcome)
-    }
+    .from (
+      waitForEvent ( deadline: deadline, events: posix_POLLIN, tag: "serial read" )
+    )
   }
 
 
   /// Polls the descriptor once with a zero timeout and indicates whether data
   /// is ready to be read immediately.
   private func pollImmediate() -> ImmediatePollOutcome {
-
-    return ImmediatePollOutcome(outcome: pollDescriptor(timeout: 0, events: posix_POLLIN, tag: "serial read"))
+    .from (
+      pollDescriptor(timeout: 0, events: posix_POLLIN, tag: "serial read")
+    )
   }
 
 
   /// Waits for the file descriptor to become writable or until the provided
   /// deadline elapses. Returning `nil` indicates the descriptor is ready.
   func waitForWritable(deadline: Date?) -> SyncIOError? {
-
-    let outcome = waitForEvent(deadline: deadline, events: posix_POLLOUT, tag: "serial write")
-
-    switch outcome {
-      case .ready : return nil
-      default     : return SerialPort.syncIOError(from: outcome)
-    }
+    .from (
+      waitForEvent(deadline: deadline, events: posix_POLLOUT, tag: "serial write")
+    )
   }
 
 
@@ -326,7 +318,7 @@ private extension SerialPort {
 
       if errno == EINTR { continue }
 
-      return .trace(.posix(self, tag: tag))
+      return .error(.posix(self, tag: tag))
     }
   }
 }
