@@ -3,6 +3,12 @@ import Dispatch
 import PosixInputStream
 import Trace
 
+
+
+// AUthor's note - though am I, really, at this point? - This part was written by Codex and I
+// am not at all sure that I like it
+
+
 //  SerialBufferedReader is a high level helper that sits in front of the low level
 //  PosixInputStream provided by SerialPort.  The reader accepts requests to deliver
 //  bytes in three different shapes: by requesting a fixed number of bytes, by
