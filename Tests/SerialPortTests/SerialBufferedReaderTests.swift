@@ -51,6 +51,71 @@ final class SerialBufferedReaderTests: XCTestCase {
         wait(for: [expectation], timeout: 2.0)
     }
 
+    func testReadAvailableReturnsBufferedData() throws {
+        let context = try PipeContext()
+        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
+        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        retain(reader)
+
+        defer {
+            context.stopForwarding()
+            reader.invalidate()
+            callbackQueue.sync { }
+            usleep(50_000)
+            context.closeDescriptors()
+        }
+
+        context.startForwarding()
+
+        context.asyncWrite("buffered")
+        usleep(50_000)
+
+        let expectation = expectation(description: "readAvailable returns buffered data")
+
+        reader.readAvailable { result in
+            switch result {
+            case .success(let data):
+                XCTAssertEqual(String(data: data, encoding: .utf8), "buffered")
+            case .failure(let error):
+                XCTFail("Unexpected error: \(error)")
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 2.0)
+    }
+
+    func testReadAvailableReturnsEmptyDataWhenBufferEmpty() throws {
+        let context = try PipeContext()
+        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
+        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        retain(reader)
+
+        defer {
+            context.stopForwarding()
+            reader.invalidate()
+            callbackQueue.sync { }
+            usleep(50_000)
+            context.closeDescriptors()
+        }
+
+        context.startForwarding()
+
+        let expectation = expectation(description: "readAvailable returns empty data")
+
+        reader.readAvailable { result in
+            switch result {
+            case .success(let data):
+                XCTAssertTrue(data.isEmpty)
+            case .failure(let error):
+                XCTFail("Unexpected error: \(error)")
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 2.0)
+    }
+
     func testReadUntilDelimiterReturnsAvailableData() throws {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
@@ -92,6 +157,80 @@ final class SerialBufferedReaderTests: XCTestCase {
         context.asyncWrite("hello\nworld")
 
         wait(for: [lineExpectation, remainderExpectation], timeout: 2.0)
+    }
+
+    func testReadAvailableCooperatesWithPendingRequests() throws {
+        let context = try PipeContext()
+        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
+        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        retain(reader)
+
+        defer {
+            context.stopForwarding()
+            reader.invalidate()
+            callbackQueue.sync { }
+            usleep(50_000)
+            context.closeDescriptors()
+        }
+
+        context.startForwarding()
+
+        let countExpectation = expectation(description: "pending count request completes")
+        let drainExpectation = expectation(description: "readAvailable completes after pending request")
+
+        var countCompleted = false
+
+        reader.read(count: 5) { result in
+            switch result {
+            case .success(let data):
+                XCTAssertEqual(String(data: data, encoding: .utf8), "alpha")
+                countCompleted = true
+            case .failure(let error):
+                XCTFail("Unexpected error: \(error)")
+            }
+            countExpectation.fulfill()
+        }
+
+        reader.readAvailable { result in
+            switch result {
+            case .success(let data):
+                XCTAssertTrue(data.isEmpty)
+                XCTAssertTrue(countCompleted)
+            case .failure(let error):
+                XCTFail("Unexpected error: \(error)")
+            }
+            drainExpectation.fulfill()
+        }
+
+        context.asyncWrite("alpha")
+
+        wait(for: [countExpectation, drainExpectation], timeout: 2.0)
+
+        let delimiterExpectation = expectation(description: "delimiter read succeeds after drain")
+        let followupCountExpectation = expectation(description: "count read succeeds after drain")
+
+        let newline: UInt8 = 0x0A
+
+        reader.read(until: newline, includeDelimiter: false) { result in
+            switch result {
+            case .success(let data):
+                XCTAssertEqual(String(data: data, encoding: .utf8), "beta")
+                delimiterExpectation.fulfill()
+
+                self.readRemainingBytes(3, using: reader, expectation: followupCountExpectation) { data in
+                    XCTAssertEqual(String(data: data, encoding: .utf8), "xyz")
+                }
+
+            case .failure(let error):
+                XCTFail("Unexpected error: \(error)")
+                delimiterExpectation.fulfill()
+                followupCountExpectation.fulfill()
+            }
+        }
+
+        context.asyncWrite("beta\nxyz")
+
+        wait(for: [delimiterExpectation, followupCountExpectation], timeout: 2.0)
     }
 
     func testReadUntilDelimiterTimesOutWithoutDelimiter() throws {
