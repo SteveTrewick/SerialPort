@@ -264,12 +264,16 @@ public extension SerialPort {
 
 private extension SerialPort {
 
-  /// Waits for the file descriptor to become readable or until the provided
-  /// deadline elapses. Returning `nil` indicates the descriptor is ready.
-  func waitForReadable(deadline: Date?) -> SyncReadError? {
+  private enum WaitResult {
+    case ready
+    case timeout
+    case trace(Trace)
+  }
+
+  private func waitForEvent(deadline: Date?, events: Int16, tag: String) -> WaitResult {
 
     guard let deadline = deadline else {
-      return nil
+      return .ready
     }
 
     while true {
@@ -281,16 +285,30 @@ private extension SerialPort {
 
       let milliseconds = min(Int32.max, Int32(max(0, Int(ceil(remaining * 1000)))))
 
-      switch pollDescriptor(timeout: milliseconds, events: posix_POLLIN, tag: "serial read") {
+      switch pollDescriptor(timeout: milliseconds, events: events, tag: tag) {
       case .success(let ready) where ready > 0:
-        return nil
+        return .ready
       case .success:
-        // The poll timed out without the descriptor becoming readable. Surface
-        // the failure so callers can translate it to a higher-level timeout.
         return .timeout
       case .failure(let trace):
         return .trace(trace)
       }
+    }
+  }
+
+  /// Waits for the file descriptor to become readable or until the provided
+  /// deadline elapses. Returning `nil` indicates the descriptor is ready.
+  func waitForReadable(deadline: Date?) -> SyncReadError? {
+
+    switch waitForEvent(deadline: deadline, events: posix_POLLIN, tag: "serial read") {
+    case .ready:
+      return nil
+    case .timeout:
+      // The poll timed out without the descriptor becoming readable. Surface
+      // the failure so callers can translate it to a higher-level timeout.
+      return .timeout
+    case .trace(let trace):
+      return .trace(trace)
     }
   }
 
@@ -312,27 +330,13 @@ private extension SerialPort {
   /// deadline elapses. Returning `nil` indicates the descriptor is ready.
   func waitForWritable(deadline: Date?) -> SyncWriteError? {
 
-    guard let deadline = deadline else {
+    switch waitForEvent(deadline: deadline, events: posix_POLLOUT, tag: "serial write") {
+    case .ready:
       return nil
-    }
-
-    while true {
-      let remaining = deadline.timeIntervalSinceNow
-
-      if remaining <= 0 {
-        return .timeout
-      }
-
-      let milliseconds = min(Int32.max, Int32(max(0, Int(ceil(remaining * 1000)))))
-
-      switch pollDescriptor(timeout: milliseconds, events: posix_POLLOUT, tag: "serial write") {
-      case .success(let ready) where ready > 0:
-        return nil
-      case .success:
-        return .timeout
-      case .failure(let trace):
-        return .trace(trace)
-      }
+    case .timeout:
+      return .timeout
+    case .trace(let trace):
+      return .trace(trace)
     }
   }
 
