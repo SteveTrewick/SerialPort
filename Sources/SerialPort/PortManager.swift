@@ -1,13 +1,5 @@
 import Foundation
 
-#if os(Linux)
-import Glibc
-private let posix_open: (UnsafePointer<CChar>, Int32) -> Int32 = Glibc.open
-#else
-import Darwin
-private let posix_open: (UnsafePointer<CChar>, Int32) -> Int32 = Darwin.open
-#endif
-
 @_exported import Trace
 
 public struct SerialDevice {

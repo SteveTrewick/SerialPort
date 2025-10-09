@@ -2,18 +2,6 @@ import Foundation
 import Dispatch
 import PosixInputStream
 
-#if os(Linux)
-import Glibc
-
-private let posix_close: (Int32) -> Int32 = Glibc.close
-#else
-import Darwin
-
-private let posix_close: (Int32) -> Int32 = Darwin.close
-#endif
-
-
-
 
 public class SerialPort {
   
