@@ -3,8 +3,14 @@
 A package for opening, configuring, reading from and writing to a serial port in Swift on macOS
 and Linux. It might work on iOS, dunno, haven't tried, maybe for bluetooth.
 
-## Linux compatibility
+## Linux compatibility - Experimental
 
+**Author's Note:** Linux compatibility for this package was added by a couple of 
+runs through GPT Codex, which also added the below section of the README. I have 
+not tested this on Linux,  only macOS. AT best I acan say it definitrly builds 
+on the Ubuntu stack in the Codex cloud container.
+
+### Codex Says :
 Linux support is now on-par with macOS for the core APIs: you can enumerate ports,
 open them via either a discovered `SerialDevice` or a direct path, and configure the
 connection using the same `SerialConfig` structure. A few platform differences are
@@ -66,10 +72,12 @@ if case let .success(devices) = result,
   exposed via `/dev/ttyUSB*` or `/dev/ttyACM*`. Some boards appear as `/dev/ttyS*` and
   require passing the full path to `open(path:)`.
 
-
-This is an incomplete implementation as of the yet, particularly with regards to the full set of termios options
-and is highly experimental. Honestly, this whole thing got way out of hand while I was just building something to
-fling a couple of bytes at an Arduino so that I can trigger a radio PTT.
+## Termios
+This is an incomplete implementation as of the yet, particularly with regards to the full 
+set of termios options and is highly experimental. Honestly, this whole thing got way out 
+of hand while I was just building something tofling a couple of bytes at an Arduino so that 
+I can trigger a radio PTT. You can directly specify termios options through `port.configure` 
+as shown below. 
  
 
 ## PortManager
