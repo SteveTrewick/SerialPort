@@ -243,8 +243,8 @@ port.stream.cancel() {
 
 ## Synchronous reading
 
-Need to block the current thread until bytes arrive? Call the new synchronous
-API and handle the `Result<Data, SyncReadError>` it returns:
+Need to block the current thread until bytes arrive? Call the synchronous APIs
+and handle the `Result<Data, SyncReadError>` they return:
 
 ```swift
 let port: SerialPort = // ...
@@ -263,6 +263,24 @@ case .failure(.trace(let trace)):
 
 When you omit the timeout the call blocks until bytes are ready, matching the
 behavior of a plain POSIX `read`.
+
+Need to drain everything that's currently readable? Use the timeout-based
+variant to wait for the first byte and then slurp everything immediately
+available:
+
+```swift
+let drained = port.read(timeout: 1)
+```
+
+Or if you're looking for a delimiter, there's a helper that keeps reading until
+it arrives, with an option to retain the delimiter in the returned data:
+
+```swift
+let line = port.read(until: 0x0A, includeDelimiter: true, timeout: 1)
+```
+
+Both helpers honor the timeout (and return `.failure(.timeout)` when nothing
+shows up in time) and report `.failure(.closed)` if the descriptor reaches EOF.
 
 ## Buffered reading
 
