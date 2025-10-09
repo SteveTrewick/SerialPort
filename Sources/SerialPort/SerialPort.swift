@@ -5,37 +5,15 @@ import PosixInputStream
 #if os(Linux)
 import Glibc
 
-@usableFromInline
-func platformClose(_ fd: Int32) -> Int32 { Glibc.close(fd) }
-
-@usableFromInline
-func platformOpen(_ path: UnsafePointer<CChar>, _ oflag: Int32) -> Int32 {
-  Glibc.open(path, oflag)
-}
+private let posix_close: (Int32) -> Int32 = Glibc.close
 #else
 import Darwin
 
-@usableFromInline
-func platformClose(_ fd: Int32) -> Int32 { Darwin.close(fd) }
-
-@usableFromInline
-func platformOpen(_ path: UnsafePointer<CChar>, _ oflag: Int32) -> Int32 {
-  Darwin.open(path, oflag)
-}
+private let posix_close: (Int32) -> Int32 = Darwin.close
 #endif
 
-@inlinable
-func posixClose(_ fd: Int32) -> Int32 {
-  platformClose(fd)
-}
-
-@inlinable
-func posixOpen(_ path: String, _ oflag: Int32) -> Int32 {
-  path.withCString { platformOpen($0, oflag) }
-}
 
 
- 
 
 public class SerialPort {
   
@@ -130,7 +108,7 @@ public class SerialPort {
     
     self.reset()              // just in case
     
-    posixClose(descriptor)  // technically this returns a vaule, but there's
+    _ = posix_close(descriptor)  // technically this returns a vaule, but there's
                               // SFA we can do about it if it doesn't work. close more?
   }
   
