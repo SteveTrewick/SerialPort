@@ -2,6 +2,17 @@ import Foundation
 import Trace
 
 
+// MARK: - Synchronous read support
+//
+// The SerialPort+SyncRead.swift file provides a convenience API for performing
+// blocking reads from the underlying file descriptor of a SerialPort instance.
+// The core idea is that higher-level API surfaces should not need to reason
+// about polling semantics, EINTR handling, or deadline management. Instead this
+// extension exposes a handful of helpers that wrap the raw POSIX interfaces in
+// a strongly typed, Swift-friendly shape while still offering rich error
+// information when things go wrong.
+
+
 public enum SyncReadError: Error {
   case timeout
   case closed
@@ -10,6 +21,17 @@ public enum SyncReadError: Error {
 
 public extension SerialPort {
 
+  /// Reads exactly `count` bytes, waiting for the descriptor to become
+  /// readable as needed. If the descriptor closes before `count` bytes have
+  /// been read an error is returned.
+  ///
+  /// - Parameters:
+  ///   - count: The number of bytes to read. A `UInt` is accepted but we keep a
+  ///            sharp eye on overflow before handing the value to POSIX APIs.
+  ///   - timeout: Optional time interval controlling how long the read will
+  ///              block while waiting for the first byte of data.
+  /// - Returns: A `Result` wrapping the data that was read or a
+  ///            `SyncReadError` describing the failure.
   func read(count: UInt, timeout: TimeInterval? = nil) -> Result<Data, SyncReadError> {
 
     if count == 0 {
@@ -17,6 +39,10 @@ public extension SerialPort {
     }
 
     guard let readCount = Int(exactly: count) else {
+      // The count parameter is user-controlled and may exceed what can be
+      // represented as an Int. Passing a truncated value to `read` would result
+      // in undefined behaviour, so we proactively bail out and surface a trace
+      // describing the overflow.
       return .failure(.trace(.trace(self, tag: "serial read count overflow", context: count)))
     }
 
@@ -34,22 +60,39 @@ public extension SerialPort {
       }
 
       if bytesRead > 0 {
+        // Any positive number of bytes marks a successful read. We return a
+        // Data view that only exposes the bytes the system call actually
+        // delivered instead of the entire buffer capacity.
         return .success(Data(bytes: buffer, count: bytesRead))
       }
 
       if bytesRead == 0 {
+        // A zero-byte read indicates EOF on a serial port. Treat this as the
+        // peer closing the connection rather than an empty read.
         return .failure(.closed)
       }
 
       if errno == EINTR {
+        // The read was interrupted by a signal. Retry the system call to keep
+        // the behaviour consistent with normal blocking reads.
         continue
       }
 
+      // Any other errno value is captured in a Trace for visibility. We do not
+      // attempt to translate every possible errno, instead leaving diagnosis to
+      // the trace consumer.
       return .failure(.trace(.posix(self, tag: "serial read")))
     }
   }
 
 
+  /// Reads bytes until the serial port goes idle. The method will return as
+  /// soon as the descriptor reports no data ready after having previously
+  /// delivered at least one byte.
+  ///
+  /// - Parameter timeout: Optional deadline used to wait for the first byte.
+  /// - Returns: A `Result` with all received bytes or an error that explains
+  ///            why reading stopped prematurely.
   func read(timeout: TimeInterval? = nil) -> Result<Data, SyncReadError> {
 
     var collected = [UInt8]()
@@ -63,6 +106,9 @@ public extension SerialPort {
           return .failure(error)
         }
       } else {
+        // Once at least one byte has been read we switch to polling without a
+        // delay. This allows us to coalesce consecutive reads into a single
+        // logical payload while still terminating when the device becomes idle.
         switch pollImmediate() {
         case .success(true):
           break
@@ -98,6 +144,9 @@ public extension SerialPort {
   }
 
 
+  /// Reads until a specific delimiter byte is encountered. The read can
+  /// optionally include the delimiter in the resulting data and will respect an
+  /// optional timeout while waiting for the first byte.
   func read(until delimiter: UInt8, includeDelimiter: Bool, timeout: TimeInterval? = nil) -> Result<Data, SyncReadError> {
 
     var collected = [UInt8]()
@@ -120,6 +169,8 @@ public extension SerialPort {
           if !includeDelimiter {
             collected.removeLast()
           }
+          // The delimiter marks the logical end of the message. Return the
+          // accumulated payload, trimming the sentinel if requested.
           return .success(Data(collected))
         }
 
@@ -142,6 +193,8 @@ public extension SerialPort {
 
 private extension SerialPort {
 
+  /// Waits for the file descriptor to become readable or until the provided
+  /// deadline elapses. Returning `nil` indicates the descriptor is ready.
   func waitForReadable(deadline: Date?) -> SyncReadError? {
 
     guard let deadline = deadline else {
@@ -161,6 +214,8 @@ private extension SerialPort {
       case .success(let ready) where ready > 0:
         return nil
       case .success:
+        // The poll timed out without the descriptor becoming readable. Surface
+        // the failure so callers can translate it to a higher-level timeout.
         return .timeout
       case .failure(let error):
         return error
@@ -169,6 +224,8 @@ private extension SerialPort {
   }
 
 
+  /// Polls the descriptor once with a zero timeout and indicates whether data
+  /// is ready to be read immediately.
   func pollImmediate() -> Result<Bool, SyncReadError> {
 
     switch pollDescriptor(timeout: 0) {
@@ -180,6 +237,8 @@ private extension SerialPort {
   }
 
 
+  /// Thin wrapper around `poll` that performs the standard EINTR retry loop and
+  /// packages failures in a consistent trace structure.
   func pollDescriptor(timeout milliseconds: Int32) -> Result<Int32, SyncReadError> {
 
     var descriptorState = pollfd(fd: descriptor, events: posix_POLLIN, revents: 0)
