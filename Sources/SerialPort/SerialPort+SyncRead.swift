@@ -11,15 +11,13 @@ import Trace
 // extension exposes a handful of helpers that wrap the raw POSIX interfaces in
 // a strongly typed, Swift-friendly shape while still offering rich error
 // information when things go wrong.
-
-
-public enum SyncIOError: Error {
-  case timeout
-  case closed
-  case trace(Trace)
-}
-
 public extension SerialPort {
+
+  public enum SyncIOError: Error {
+    case timeout
+    case closed
+    case trace(Trace)
+  }
 
   /// Reads exactly `count` bytes, waiting for the descriptor to become
   /// readable as needed. If the descriptor closes before `count` bytes have

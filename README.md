@@ -244,7 +244,7 @@ port.stream.cancel() {
 ## Synchronous I/O
 
 Oh, you _didn't_ like that? Need to block the current thread until bytes arrive? Call the synchronous APIs
-and handle the `Result<Data, SyncIOError>` they return:
+and handle the `Result<Data, SerialPort.SyncIOError>` they return:
 
 ```swift
 let port: SerialPort = // ...
@@ -280,7 +280,7 @@ let line = port.read(until: 0x0A, includeDelimiter: true, timeout: 1)
 ```
 
 Need to push bytes out on the calling thread? Use the synchronous write helper
-and handle the `Result<Int, SyncIOError>`:
+and handle the `Result<Int, SerialPort.SyncIOError>`:
 
 ```swift
 switch port.write(Data("OK".utf8), timeout: 1) {
