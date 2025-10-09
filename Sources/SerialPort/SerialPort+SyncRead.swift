@@ -1,17 +1,6 @@
 import Foundation
 import Trace
 
-#if os(Linux)
-import Glibc
-private let systemRead = Glibc.read
-private let systemPoll = Glibc.poll
-private let pollEventIn = Int16(Glibc.POLLIN)
-#else
-import Darwin
-private let systemRead = Darwin.read
-private let systemPoll = Darwin.poll
-private let pollEventIn = Int16(Darwin.POLLIN)
-#endif
 
 public enum SyncReadError: Error {
   case timeout
@@ -44,9 +33,9 @@ public extension SerialPort {
           }
 
           let milliseconds = min(Int32.max, Int32(max(0, Int(ceil(remaining * 1000)))))
-          var descriptorState = pollfd(fd: descriptor, events: pollEventIn, revents: 0)
+          var descriptorState = pollfd(fd: descriptor, events: posix_POLLIN, revents: 0)
           let ready = withUnsafeMutablePointer(to: &descriptorState) {
-            systemPoll($0, nfds_t(1), milliseconds)
+            posix_poll($0, nfds_t(1), milliseconds)
           }
 
           if ready > 0 {
@@ -67,7 +56,7 @@ public extension SerialPort {
 
       let bytesRead = buffer.withUnsafeMutableBytes { pointer -> Int in
         guard let baseAddress = pointer.baseAddress else { return 0 }
-        return systemRead(descriptor, baseAddress, readCount)
+        return posix_read(descriptor, baseAddress, readCount)
       }
 
       if bytesRead > 0 {
