@@ -118,7 +118,7 @@ public class SerialPort {
       
       data.withUnsafeBytes {
         
-        let wrote = write(descriptor, $0.baseAddress, data.count)
+        let wrote = posix_write(descriptor, $0.baseAddress, data.count)
         
         if wrote == -1 {
             complete?( .failure( .posix(self, tag: "serial write") ) )
