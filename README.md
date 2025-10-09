@@ -248,6 +248,12 @@ Oh, you didn't like that, OK, well.
 If you prefer to read from the port without wiring up your own stream handler, wrap
 the stream with a buffered reader:
 
+There's also a convenience `reader.read(timeout:completion:)` with no count or
+delimiter arguments. It drains everything currently buffered as soon as you call
+it, handing the accumulated bytes to the completion handler in one go. You can
+still supply a timeout if you want to wait for additional bytes, and you'll get
+`.failure(.timeout)` if nothing arrives in time.
+
 ```swift
 let port: SerialPort = // ...
 let reader = port.bufferedReader()
@@ -264,12 +270,23 @@ reader.read(count: 8) { result in
 reader.read(until: 0x0A, includeDelimiter: true) { result in
   // handle the same way as above
 }
+
+// drain whatever is currently buffered (and optionally wait for more)
+reader.read { result in
+  switch result {
+    case .success(let bytes):
+      print("flushed", bytes)
+    case .failure(let error):
+      print("read failed", error)
+  }
+}
 ```
 
-Both APIs accept an optional `DispatchTimeInterval` timeout. If you provide one,
-the completion handler receives `.failure(.timeout)` when the deadline passes
-without satisfying the request. When a timeout is omitted the read waits until
-enough bytes arrive.
+All of these APIs accept an optional `DispatchTimeInterval` timeout. If you
+provide one, the completion handler receives `.failure(.timeout)` when the
+deadline passes without satisfying the request. When a timeout is omitted the
+read waits until enough bytes arrive, or in the case of the no-argument read,
+immediately drains and returns everything currently buffered.
 
 
 
