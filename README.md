@@ -7,7 +7,7 @@ and Linux. It might work on iOS, dunno, haven't tried, maybe for bluetooth.
 
 **Author's Note:** Linux compatibility for this package was added by a couple of 
 runs through GPT Codex, which also added the below section of the README. I have 
-not tested this on Linux,  only macOS. AT best I acan say it definitrly builds 
+not tested this on Linux,  only macOS. AT best I can say it definitely builds 
 on the Ubuntu stack in the Codex cloud container.
 
 ### Codex Says :
