@@ -16,6 +16,7 @@ public final class SerialBufferedReader {
     enum Kind {
       case count(Int)
       case delimiter(UInt8, include: Bool)
+      case drain
     }
 
     let id = UUID()
@@ -198,6 +199,36 @@ public final class SerialBufferedReader {
     }
   }
 
+  public func readAvailable(timeout: DispatchTimeInterval? = nil,
+                            completion: @escaping (Result<Data, ReadError>) -> Void) {
+
+    bufferQueue.async {
+
+      if let error = self.terminalError {
+        self.callbackQueue.async {
+          completion(.failure(error))
+        }
+        return
+      }
+
+      if self.order.isEmpty {
+
+        let chunk = self.buffer
+        self.buffer.removeAll(keepingCapacity: false)
+
+        self.callbackQueue.async {
+          completion(.success(chunk))
+        }
+
+        return
+      }
+
+      let request = PendingRequest(kind: .drain, completion: completion)
+      self.enqueue(request, timeout: timeout)
+      self.satisfyPendingRequests()
+    }
+  }
+
   private func enqueue(_ request: PendingRequest, timeout: DispatchTimeInterval?) {
 
     pending[request.id] = request
@@ -229,6 +260,7 @@ public final class SerialBufferedReader {
     guard let request = removeRequest(with: id) else { return }
 
     dispatch(request: request, result: .failure(.timeout))
+    satisfyPendingRequests()
   }
 
   private func satisfyPendingRequests() {
@@ -262,6 +294,14 @@ public final class SerialBufferedReader {
           buffer.removeSubrange(buffer.startIndex..<afterDelimiter)
 
           fulfilled.append((request, Data(chunk)))
+          consumed.append(id)
+
+        case .drain:
+
+          let chunk = buffer
+          buffer.removeAll(keepingCapacity: false)
+
+          fulfilled.append((request, chunk))
           consumed.append(id)
       }
     }
