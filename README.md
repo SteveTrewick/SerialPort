@@ -1,7 +1,70 @@
 # SerialPort
 
-A package for opening, configuring, reading from and writing to a serial port in Swift on macOS, 
-it might work on iOS, dunno, haven't tried, maybe for bluetooth? Won't work on linux as is.
+A package for opening, configuring, reading from and writing to a serial port in Swift on macOS
+and Linux. It might work on iOS, dunno, haven't tried, maybe for bluetooth.
+
+## Linux compatibility
+
+Linux support is now on-par with macOS for the core APIs: you can enumerate ports,
+open them via either a discovered `SerialDevice` or a direct path, and configure the
+connection using the same `SerialConfig` structure. A few platform differences are
+worth noting:
+
+* **Enumeration** – on Linux the `PortManager` enumerates `/dev/tty*`, `/dev/ttyUSB*`
+  and `/dev/ttyACM*` devices. macOS continues to provide both `tty.*` and `cu.*`
+  style device paths. Only the paths that exist on the current platform will be
+  populated on the `SerialDevice` instance.
+* **Baud rates** – both platforms expose the standard baud rates declared in
+  `BaudRate`. Linux exposes additional high-speed values (e.g. 230_400, 460_800,
+  921_600) when the kernel reports support; macOS falls back to the Darwin termios
+  table.
+* **Permissions** – on most Linux distributions you must either run your process as
+  root or add your user to the `dialout` (or distribution-specific) group so that it
+  can open `/dev/tty*` device files. macOS generally grants access automatically but
+  may prompt once for USB devices.
+* **Platform-only metadata** – the optional IOKit-derived metadata (like location ID
+  and vendor/product strings) on `SerialDevice` remains macOS-only, because those APIs
+  depend on IOKit. Linux devices will report `nil` for those properties.
+
+### Quick start on Linux
+
+If you already know the path of your serial interface, you can open it directly:
+
+```swift
+import SerialPort
+
+let manager = PortManager()
+
+switch manager.open(path: "/dev/ttyUSB0") {
+case .failure(let trace):
+  print("failed to open port", trace)
+case .success(let port):
+  try? port.configure(config: SerialConfig(baud: .baud_115200))
+  // use `port` like you would on macOS
+}
+```
+
+Or, discover available ports and pick one by basename:
+
+```swift
+let result = PortManager().enumeratePorts()
+
+if case let .success(devices) = result,
+   let device = devices.first(where: { $0.basename == "ttyUSB0" }) {
+  _ = PortManager().open(device: device)
+}
+```
+
+### Troubleshooting on Linux
+
+* `POSIXError.permissionDenied` – confirm your user is in the `dialout` (Debian/Ubuntu),
+  `uucp` (Arch), or `serial` (RHEL/Fedora) group, then log out/in. As a temporary
+  workaround you can run the process with elevated privileges.
+* `POSIXError.deviceBusy` – another process (like ModemManager) may have the port open.
+  Disable or stop the service, or unplug/replug the device to release the handle.
+* No ports are enumerated – check that your user has permissions and that the device is
+  exposed via `/dev/ttyUSB*` or `/dev/ttyACM*`. Some boards appear as `/dev/ttyS*` and
+  require passing the full path to `open(path:)`.
 
 
 This is an incomplete implementation as of the yet, particularly with regards to the full set of termios options
