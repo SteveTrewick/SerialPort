@@ -3,20 +3,34 @@ import PosixInputStream
 
 #if os(Linux)
 import Glibc
-private typealias PosixLib = Glibc
+
+@usableFromInline
+func platformClose(_ fd: Int32) -> Int32 { Glibc.close(fd) }
+
+@usableFromInline
+func platformOpen(_ path: UnsafePointer<CChar>, _ oflag: Int32) -> Int32 {
+  Glibc.open(path, oflag)
+}
 #else
 import Darwin
-private typealias PosixLib = Darwin
+
+@usableFromInline
+func platformClose(_ fd: Int32) -> Int32 { Darwin.close(fd) }
+
+@usableFromInline
+func platformOpen(_ path: UnsafePointer<CChar>, _ oflag: Int32) -> Int32 {
+  Darwin.open(path, oflag)
+}
 #endif
 
 @inlinable
 func posixClose(_ fd: Int32) -> Int32 {
-  PosixLib.close(fd)
+  platformClose(fd)
 }
 
 @inlinable
 func posixOpen(_ path: String, _ oflag: Int32) -> Int32 {
-  path.withCString { PosixLib.open($0, oflag) }
+  path.withCString { platformOpen($0, oflag) }
 }
 
 
@@ -62,33 +76,33 @@ public class SerialPort {
     #endif
     
     
-    options.c_cflag &= ~UInt(CSIZE)
+    options.c_cflag &= ~tcflag_t(CSIZE)
     options.c_cflag |= config.databits.count
     
     
     switch config.parity {
       case .none :
-        options.c_cflag &= ~UInt(PARENB)
+        options.c_cflag &= ~tcflag_t(PARENB)
         
       case .even :
-        options.c_cflag |=  UInt(PARENB)
-        options.c_cflag &= ~UInt(PARODD)
+        options.c_cflag |=  tcflag_t(PARENB)
+        options.c_cflag &= ~tcflag_t(PARODD)
                    
       case .odd  :
-        options.c_cflag |= UInt(PARENB)
-        options.c_cflag |= UInt(PARODD)
+        options.c_cflag |= tcflag_t(PARENB)
+        options.c_cflag |= tcflag_t(PARODD)
     }
     
     
     switch config.stopbits {
-      case .one : options.c_cflag &= ~UInt(CSTOPB)
-      case .two : options.c_cflag |=  UInt(CSTOPB)
+      case .one : options.c_cflag &= ~tcflag_t(CSTOPB)
+      case .two : options.c_cflag |=  tcflag_t(CSTOPB)
     }
     
     
     switch config.linemode {
-      case .canonical : options.c_lflag |=  ( UInt(ICANON) | UInt(ECHO) | UInt(ECHOE) )
-      case .raw       : options.c_lflag &= ~( UInt(ICANON) | UInt(ECHO) | UInt(ECHOE) | UInt(ISIG) )
+      case .canonical : options.c_lflag |=  ( tcflag_t(ICANON) | tcflag_t(ECHO) | tcflag_t(ECHOE) )
+      case .raw       : options.c_lflag &= ~( tcflag_t(ICANON) | tcflag_t(ECHO) | tcflag_t(ECHOE) | tcflag_t(ISIG) )
     }
     
     // always, don't @ me : https://www.ing.iac.es/~docs/external/serial/serial.pdf

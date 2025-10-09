@@ -1,4 +1,9 @@
 import Foundation
+#if os(Linux)
+import Glibc
+#else
+import Darwin
+#endif
 
 /*
   Serial port config options
@@ -97,12 +102,12 @@ public enum DataBits : Int32, CaseIterable {
   case seven
   case eight
   
-  public var count : UInt {
+  public var count : tcflag_t {
     switch self {
-      case .five  : return UInt(CS5)
-      case .six   : return UInt(CS6)
-      case .seven : return UInt(CS7)
-      case .eight : return UInt(CS8)
+      case .five  : return tcflag_t(CS5)
+      case .six   : return tcflag_t(CS6)
+      case .seven : return tcflag_t(CS7)
+      case .eight : return tcflag_t(CS8)
     }
   }
 }
