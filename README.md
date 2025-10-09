@@ -250,15 +250,13 @@ the stream with a buffered reader:
 
 ```swift
 let port: SerialPort = // ...
-let reader = port.makeBufferedReader()
+let reader = port.bufferedReader()
 
 // read an exact number of bytes
 reader.read(count: 8) { result in
   switch result {
-    case .success(let bytes):
-      print("received", bytes)
-    case .failure(let error):
-      print("read failed", error)
+    case .success(let bytes): print("received", bytes)
+    case .failure(let error): print("read failed", error)
   }
 }
 
