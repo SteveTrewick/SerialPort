@@ -20,7 +20,7 @@ final class SerialBufferedReaderTests: XCTestCase {
     func testReadCountWaitsForExactBytes() throws {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
         retainReader(reader)
 
         defer {
@@ -54,7 +54,7 @@ final class SerialBufferedReaderTests: XCTestCase {
     func testReadAvailableReturnsBufferedData() throws {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
         retainReader(reader)
 
         defer {
@@ -88,7 +88,7 @@ final class SerialBufferedReaderTests: XCTestCase {
     func testReadAvailableReturnsEmptyDataWhenBufferEmpty() throws {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
         retainReader(reader)
 
         defer {
@@ -119,7 +119,7 @@ final class SerialBufferedReaderTests: XCTestCase {
     func testReadUntilDelimiterReturnsAvailableData() throws {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
         retainReader(reader)
 
         defer {
@@ -162,7 +162,7 @@ final class SerialBufferedReaderTests: XCTestCase {
     func testReadAvailableCooperatesWithPendingRequests() throws {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
         retainReader(reader)
 
         defer {
@@ -236,7 +236,7 @@ final class SerialBufferedReaderTests: XCTestCase {
     func testReadUntilDelimiterTimesOutWithoutDelimiter() throws {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
         retainReader(reader)
 
         defer {
@@ -282,7 +282,7 @@ final class SerialBufferedReaderTests: XCTestCase {
     func testReadUntilDelimiterSpanningMultipleWritesIncludesDelimiter() throws {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
         retainReader(reader)
 
         defer {
@@ -344,7 +344,7 @@ final class SerialBufferedReaderTests: XCTestCase {
             }
         }
 
-        let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
+        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
         retainReader(reader)
 
         defer {

@@ -346,7 +346,7 @@ public final class SerialBufferedReader {
 
 public extension SerialPort {
 
-  func makeBufferedReader(callbackQueue: DispatchQueue? = nil) -> SerialBufferedReader {
+  func bufferedReader(callbackQueue: DispatchQueue? = nil) -> SerialBufferedReader {
 
     let existingHandler = stream.handler
 
