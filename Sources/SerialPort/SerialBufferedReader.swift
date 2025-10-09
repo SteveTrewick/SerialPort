@@ -46,10 +46,126 @@ public final class SerialBufferedReader {
     teardown(for: .closed)
   }
 
+  
+  //MARK: - Public API
+  
   public func invalidate() {
     teardown(for: .closed)
   }
 
+  
+  
+  public func read(count: Int,
+                   timeout: DispatchTimeInterval? = nil,
+                   completion: @escaping (Result<Data, ReadError>) -> Void) {
+
+    bufferQueue.async {
+
+      guard count > 0 else {
+        self.callbackQueue.async {
+          completion(.success(Data()))
+        }
+        return
+      }
+
+      if let error = self.terminalError {
+        self.callbackQueue.async {
+          completion(.failure(error))
+        }
+        return
+      }
+
+      if self.buffer.count >= count {
+
+        let chunk = self.buffer.prefix(count)
+        self.buffer.removeFirst(count)
+
+        self.callbackQueue.async {
+          completion(.success(Data(chunk)))
+        }
+
+        return
+      }
+
+      let request = PendingRequest(kind: .count(count), completion: completion)
+      self.enqueue(request, timeout: timeout)
+    }
+  }
+
+  
+  
+  public func read(until delimiter: UInt8,
+                   includeDelimiter: Bool,
+                   timeout: DispatchTimeInterval? = nil,
+                   completion: @escaping (Result<Data, ReadError>) -> Void) {
+
+    bufferQueue.async {
+
+      if let error = self.terminalError {
+        self.callbackQueue.async {
+          completion(.failure(error))
+        }
+        return
+      }
+
+      if let index = self.buffer.firstIndex(of: delimiter) {
+
+        let afterDelimiter = self.buffer.index(after: index)
+        let endIndex       = includeDelimiter ? afterDelimiter : index
+
+        let chunk = self.buffer[..<endIndex]
+        self.buffer.removeSubrange(self.buffer.startIndex..<afterDelimiter)
+
+        self.callbackQueue.async {
+          completion(.success(Data(chunk)))
+        }
+
+        return
+      }
+
+      let request = PendingRequest(kind: .delimiter(delimiter, include: includeDelimiter),
+                                   completion: completion)
+      self.enqueue(request, timeout: timeout)
+    }
+  }
+
+  
+  
+  public func readAvailable(timeout: DispatchTimeInterval? = nil,
+                            completion: @escaping (Result<Data, ReadError>) -> Void) {
+
+    bufferQueue.async {
+
+      if let error = self.terminalError {
+        self.callbackQueue.async {
+          completion(.failure(error))
+        }
+        return
+      }
+
+      if self.order.isEmpty {
+
+        let chunk = self.buffer
+        self.buffer.removeAll(keepingCapacity: false)
+
+        self.callbackQueue.async {
+          completion(.success(chunk))
+        }
+
+        return
+      }
+
+      let request = PendingRequest(kind: .drain, completion: completion)
+      self.enqueue(request, timeout: timeout)
+      self.satisfyPendingRequests()
+    }
+  }
+  
+  
+  
+  
+  //MARK: Implmentation
+  
   private func installHandler() {
 
     let forward = forwardingHandler
@@ -108,107 +224,7 @@ public final class SerialBufferedReader {
     }
   }
 
-  public func read(count: Int,
-                   timeout: DispatchTimeInterval? = nil,
-                   completion: @escaping (Result<Data, ReadError>) -> Void) {
 
-    bufferQueue.async {
-
-      guard count > 0 else {
-        self.callbackQueue.async {
-          completion(.success(Data()))
-        }
-        return
-      }
-
-      if let error = self.terminalError {
-        self.callbackQueue.async {
-          completion(.failure(error))
-        }
-        return
-      }
-
-      if self.buffer.count >= count {
-
-        let chunk = self.buffer.prefix(count)
-        self.buffer.removeFirst(count)
-
-        self.callbackQueue.async {
-          completion(.success(Data(chunk)))
-        }
-
-        return
-      }
-
-      let request = PendingRequest(kind: .count(count), completion: completion)
-      self.enqueue(request, timeout: timeout)
-    }
-  }
-
-  public func read(until delimiter: UInt8,
-                   includeDelimiter: Bool,
-                   timeout: DispatchTimeInterval? = nil,
-                   completion: @escaping (Result<Data, ReadError>) -> Void) {
-
-    bufferQueue.async {
-
-      if let error = self.terminalError {
-        self.callbackQueue.async {
-          completion(.failure(error))
-        }
-        return
-      }
-
-      if let index = self.buffer.firstIndex(of: delimiter) {
-
-        let afterDelimiter = self.buffer.index(after: index)
-        let endIndex       = includeDelimiter ? afterDelimiter : index
-
-        let chunk = self.buffer[..<endIndex]
-        self.buffer.removeSubrange(self.buffer.startIndex..<afterDelimiter)
-
-        self.callbackQueue.async {
-          completion(.success(Data(chunk)))
-        }
-
-        return
-      }
-
-      let request = PendingRequest(kind: .delimiter(delimiter, include: includeDelimiter),
-                                   completion: completion)
-      self.enqueue(request, timeout: timeout)
-    }
-  }
-
-  public func readAvailable(timeout: DispatchTimeInterval? = nil,
-                            completion: @escaping (Result<Data, ReadError>) -> Void) {
-
-    bufferQueue.async {
-
-      if let error = self.terminalError {
-        self.callbackQueue.async {
-          completion(.failure(error))
-        }
-        return
-      }
-
-      if self.order.isEmpty {
-
-        let chunk = self.buffer
-        self.buffer.removeAll(keepingCapacity: false)
-
-        self.callbackQueue.async {
-          completion(.success(chunk))
-        }
-
-        return
-      }
-
-      let request = PendingRequest(kind: .drain, completion: completion)
-      self.enqueue(request, timeout: timeout)
-      self.satisfyPendingRequests()
-    }
-  }
 
   private func enqueue(_ request: PendingRequest, timeout: DispatchTimeInterval?) {
 
