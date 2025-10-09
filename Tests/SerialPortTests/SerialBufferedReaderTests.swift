@@ -11,7 +11,7 @@ import Darwin
 
 private var retainedReaders = [SerialBufferedReader]()
 
-private func retain(_ reader: SerialBufferedReader) {
+private func retainReader(_ reader: SerialBufferedReader) {
     retainedReaders.append(reader)
 }
 
@@ -21,7 +21,7 @@ final class SerialBufferedReaderTests: XCTestCase {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
         let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
-        retain(reader)
+        retainReader(reader)
 
         defer {
             context.stopForwarding()
@@ -55,7 +55,7 @@ final class SerialBufferedReaderTests: XCTestCase {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
         let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
-        retain(reader)
+        retainReader(reader)
 
         defer {
             context.stopForwarding()
@@ -89,7 +89,7 @@ final class SerialBufferedReaderTests: XCTestCase {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
         let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
-        retain(reader)
+        retainReader(reader)
 
         defer {
             context.stopForwarding()
@@ -120,7 +120,7 @@ final class SerialBufferedReaderTests: XCTestCase {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
         let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
-        retain(reader)
+        retainReader(reader)
 
         defer {
             context.stopForwarding()
@@ -163,7 +163,7 @@ final class SerialBufferedReaderTests: XCTestCase {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
         let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
-        retain(reader)
+        retainReader(reader)
 
         defer {
             context.stopForwarding()
@@ -237,7 +237,7 @@ final class SerialBufferedReaderTests: XCTestCase {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
         let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
-        retain(reader)
+        retainReader(reader)
 
         defer {
             context.stopForwarding()
@@ -283,7 +283,7 @@ final class SerialBufferedReaderTests: XCTestCase {
         let context = try PipeContext()
         let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
         let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
-        retain(reader)
+        retainReader(reader)
 
         defer {
             context.stopForwarding()
@@ -345,7 +345,7 @@ final class SerialBufferedReaderTests: XCTestCase {
         }
 
         let reader = context.serial.makeBufferedReader(callbackQueue: callbackQueue)
-        retain(reader)
+        retainReader(reader)
 
         defer {
             context.stopForwarding()
