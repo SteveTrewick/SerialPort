@@ -40,9 +40,7 @@ public extension SerialPort {
   ///            `SyncReadError` describing the failure.
   func read(count: UInt, timeout: TimeInterval? = nil) -> Result<Data, SyncReadError> {
 
-    if count == 0 {
-      return .success(Data())
-    }
+    if count == 0 { return .success(Data()) }
 
     guard let readCount = Int(exactly: count) else {
       // The count parameter is user-controlled and may exceed what can be
@@ -52,13 +50,11 @@ public extension SerialPort {
       return .failure(.trace(.trace(self, tag: "serial read count overflow", context: count)))
     }
 
-    var buffer = [UInt8](repeating: 0, count: readCount)
+    var buffer   = [UInt8](repeating: 0, count: readCount)
     let deadline = timeout.map { Date().addingTimeInterval($0) }
 
     while true {
-      if let error = waitForReadable(deadline: deadline) {
-        return .failure(error)
-      }
+      if let error = waitForReadable(deadline: deadline) { return .failure(error) }
 
       let bytesRead = buffer.withUnsafeMutableBytes { pointer -> Int in
         guard let baseAddress = pointer.baseAddress else { return 0 }
@@ -108,20 +104,16 @@ public extension SerialPort {
 
     while true {
       if shouldWaitForDeadline {
-        if let error = waitForReadable(deadline: deadline) {
-          return .failure(error)
-        }
-      } else {
+        if let error = waitForReadable ( deadline: deadline ) { return .failure(error) }
+      }
+      else {
         // Once at least one byte has been read we switch to polling without a
         // delay. This allows us to coalesce consecutive reads into a single
         // logical payload while still terminating when the device becomes idle.
         switch pollImmediate() {
-        case .success(true):
-          break
-        case .success(false):
-          return .success(Data(collected))
-        case .failure(let error):
-          return .failure(error)
+          case .success ( true      ) : break
+          case .success ( false     ) : return .success(Data(collected))
+          case .failure ( let error ) : return .failure(error)
         }
       }
 
@@ -137,13 +129,9 @@ public extension SerialPort {
         continue
       }
 
-      if bytesRead == 0 {
-        return .failure(.closed)
-      }
+      if bytesRead == 0 { return .failure(.closed) }
 
-      if errno == EINTR {
-        continue
-      }
+      if errno == EINTR { continue }
 
       return .failure(.trace(.posix(self, tag: "serial read")))
     }
@@ -172,9 +160,8 @@ public extension SerialPort {
         collected.append(byte)
 
         if byte == delimiter {
-          if !includeDelimiter {
-            collected.removeLast()
-          }
+          if !includeDelimiter { collected.removeLast() }
+          
           // The delimiter marks the logical end of the message. Return the
           // accumulated payload, trimming the sentinel if requested.
           return .success(Data(collected))
@@ -183,13 +170,9 @@ public extension SerialPort {
         continue
       }
 
-      if bytesRead == 0 {
-        return .failure(.closed)
-      }
+      if bytesRead == 0 { return .failure(.closed) }
 
-      if errno == EINTR {
-        continue
-      }
+      if errno == EINTR { continue }
 
       return .failure(.trace(.posix(self, tag: "serial read")))
     }
@@ -208,40 +191,30 @@ public extension SerialPort {
   ///            describes the failure.
   func write(_ data: Data, timeout: TimeInterval? = nil) -> Result<Int, SyncWriteError> {
 
-    if data.isEmpty {
-      return .success(0)
-    }
+    if data.isEmpty { return .success(0) }
 
     let deadline = timeout.map { Date().addingTimeInterval($0) }
 
     return data.withUnsafeBytes { pointer -> Result<Int, SyncWriteError> in
-      guard let baseAddress = pointer.baseAddress else {
-        return .success(0)
-      }
+      guard let baseAddress = pointer.baseAddress else { return .success(0) }
 
       var totalWritten = 0
-      let length = pointer.count
+      let length       = pointer.count
 
       while totalWritten < length {
-        if let error = waitForWritable(deadline: deadline) {
-          return .failure(error)
-        }
+        if let error = waitForWritable(deadline: deadline) { return .failure(error) }
 
         let remaining = length - totalWritten
-        let wrote = posix_write(descriptor, baseAddress.advanced(by: totalWritten), remaining)
+        let wrote     = posix_write(descriptor, baseAddress.advanced(by: totalWritten), remaining)
 
         if wrote > 0 {
           totalWritten += wrote
           continue
         }
 
-        if wrote == 0 {
-          return .failure(.closed)
-        }
+        if wrote == 0 { return .failure(.closed) }
 
-        if errno == EINTR {
-          continue
-        }
+        if errno == EINTR { continue }
 
         if errno == EAGAIN || errno == EWOULDBLOCK {
           // Non-blocking descriptors may temporarily refuse additional bytes.
@@ -249,9 +222,7 @@ public extension SerialPort {
           continue
         }
 
-        if errno == EPIPE || errno == EBADF {
-          return .failure(.closed)
-        }
+        if errno == EPIPE || errno == EBADF { return .failure(.closed) }
 
         return .failure(.trace(.posix(self, tag: "serial write")))
       }
@@ -272,26 +243,19 @@ private extension SerialPort {
 
   private func waitForEvent(deadline: Date?, events: Int16, tag: String) -> WaitResult {
 
-    guard let deadline = deadline else {
-      return .ready
-    }
+    guard let deadline = deadline else { return .ready }
 
     while true {
       let remaining = deadline.timeIntervalSinceNow
 
-      if remaining <= 0 {
-        return .timeout
-      }
+      if remaining <= 0 { return .timeout }
 
       let milliseconds = min(Int32.max, Int32(max(0, Int(ceil(remaining * 1000)))))
 
       switch pollDescriptor(timeout: milliseconds, events: events, tag: tag) {
-      case .success(let ready) where ready > 0:
-        return .ready
-      case .success:
-        return .timeout
-      case .failure(let trace):
-        return .trace(trace)
+        case .success ( let ready ) where ready > 0 : return .ready
+        case .success                               : return .timeout
+        case .failure ( let trace )                 : return .trace(trace)
       }
     }
   }
@@ -300,15 +264,10 @@ private extension SerialPort {
   /// deadline elapses. Returning `nil` indicates the descriptor is ready.
   func waitForReadable(deadline: Date?) -> SyncReadError? {
 
-    switch waitForEvent(deadline: deadline, events: posix_POLLIN, tag: "serial read") {
-    case .ready:
-      return nil
-    case .timeout:
-      // The poll timed out without the descriptor becoming readable. Surface
-      // the failure so callers can translate it to a higher-level timeout.
-      return .timeout
-    case .trace(let trace):
-      return .trace(trace)
+    switch waitForEvent ( deadline: deadline, events: posix_POLLIN, tag: "serial read" ) {
+      case .ready               : return nil
+      case .timeout             : return .timeout // // The poll timed out without the descriptor becoming readable
+      case .trace ( let trace ) : return .trace(trace)
     }
   }
 
@@ -318,10 +277,8 @@ private extension SerialPort {
   func pollImmediate() -> Result<Bool, SyncReadError> {
 
     switch pollDescriptor(timeout: 0, events: posix_POLLIN, tag: "serial read") {
-    case .success(let ready):
-      return .success(ready > 0)
-    case .failure(let trace):
-      return .failure(.trace(trace))
+      case .success(let ready) : return .success(ready > 0)
+      case .failure(let trace) : return .failure(.trace(trace))
     }
   }
 
@@ -331,12 +288,9 @@ private extension SerialPort {
   func waitForWritable(deadline: Date?) -> SyncWriteError? {
 
     switch waitForEvent(deadline: deadline, events: posix_POLLOUT, tag: "serial write") {
-    case .ready:
-      return nil
-    case .timeout:
-      return .timeout
-    case .trace(let trace):
-      return .trace(trace)
+      case .ready               : return nil
+      case .timeout             : return .timeout
+      case .trace ( let trace ) : return .trace(trace)
     }
   }
 
@@ -348,17 +302,11 @@ private extension SerialPort {
     var descriptorState = pollfd(fd: descriptor, events: events, revents: 0)
 
     while true {
-      let ready = withUnsafeMutablePointer(to: &descriptorState) {
-        posix_poll($0, nfds_t(1), milliseconds)
-      }
+      let ready = withUnsafeMutablePointer(to: &descriptorState) { posix_poll($0, nfds_t(1), milliseconds) }
 
-      if ready >= 0 {
-        return .success(ready)
-      }
+      if ready >= 0 { return .success(ready) }
 
-      if errno == EINTR {
-        continue
-      }
+      if errno == EINTR { continue }
 
       return .failure(.posix(self, tag: tag))
     }
