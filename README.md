@@ -116,7 +116,7 @@ switch result {
 
 ```
 
-If this succedds (and it should) you will get an array of ```SerialDevice``` which looks like this :
+If this succeeds (and it should) you will get an array of ```SerialDevice``` which looks like this :
 
 ```swift
 
@@ -243,7 +243,7 @@ port.stream.cancel() {
 
 ## Synchronous I/O
 
-Need to block the current thread until bytes arrive? Call the synchronous APIs
+Oh, you _didn't_ like that? Need to block the current thread until bytes arrive? Call the synchronous APIs
 and handle the `Result<Data, SyncReadError>` they return:
 
 ```swift
