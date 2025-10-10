@@ -9,7 +9,7 @@ public struct PosixPolling {
   
   // model the timeout behaviour, polling is either immediate or with a timeout defined in µseconds
   public struct Timeout : Equatable {
-    
+
     let milliseconds : Int32
     
     
@@ -23,6 +23,19 @@ public struct PosixPolling {
     public static var  zero       : Timeout = Timeout ( milliseconds: 0  )
     public static var  indefinite : Timeout = Timeout ( milliseconds: -1 )
     public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
+
+    public static func seconds ( _ interval: TimeInterval ) -> Timeout {
+
+      if interval.isInfinite { return .indefinite }
+
+      if interval <= 0 { return .zero }
+
+      let milliseconds = Int ( ( interval * 1000 ).rounded (.up) )
+
+      let clamped      = min ( Int ( Int32.max ), milliseconds )
+
+      return .wait ( Int32 ( clamped ) )
+    }
   }
   
   // model the flag and tag for read/write, we use the tags for descriptive errors
@@ -373,6 +386,12 @@ public struct SyncIO {
       case .error ( let trace ) : return .error ( trace )
     }
   }
+}
+
+
+public extension SerialPort {
+
+  var syncIO : SyncIO { SyncIO ( descriptor: descriptor ) }
 }
 
 

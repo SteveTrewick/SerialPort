@@ -24,7 +24,7 @@ final class SerialPortSyncWriteTests: XCTestCase {
         defer { context.closeDescriptors() }
 
         let payload = Data("hello".utf8)
-        let result = context.serial.write(payload, timeout: 1)
+        let result = context.serial.syncIO.write(payload, timeout: .seconds(1))
 
         switch result {
         case .success(let count):
@@ -45,7 +45,7 @@ final class SerialPortSyncWriteTests: XCTestCase {
         try context.fillSendBuffer()
 
         let payload = Data("x".utf8)
-        let result = context.serial.write(payload, timeout: 0.01)
+        let result = context.serial.syncIO.write(payload, timeout: .seconds(0.01))
 
         switch result {
         case .success:
@@ -66,7 +66,7 @@ final class SerialPortSyncWriteTests: XCTestCase {
         context.peer.closeFile()
 
         let payload = Data("z".utf8)
-        let result = context.serial.write(payload, timeout: 1)
+        let result = context.serial.syncIO.write(payload, timeout: .seconds(1))
 
         switch result {
         case .success:
