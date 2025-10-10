@@ -170,7 +170,9 @@ public struct SyncIO {
 
   
   public func read ( count: Int, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Data, SyncIO.Error> {
-  
+
+    if count == 0 { return .success ( Data() ) }
+
     // bail if we have a dumb parameter, how ya gonna read -12 bytes, dumbass
     guard count > 0 else {
       return .failure (
@@ -268,7 +270,96 @@ public struct SyncIO {
     }
     
   }
-  
+
+
+
+  public func read ( until delimiter: UInt8, includeDelimiter: Bool, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Data, SyncIO.Error> {
+
+    var collected = [UInt8]()
+    var timeout   = timeout
+    var clock     = TimeoutClock()
+
+    while true {
+      if let error = check ( poll.timeout(timeout, for: .read) ) { return .failure(error) }
+
+      var byte : UInt8 = 0
+      let bytes_read = withUnsafeMutablePointer(to: &byte) {
+        posix_read ( descriptor, $0, 1 )
+      }
+
+      if bytes_read > 0 {
+        collected.append ( byte )
+
+        if byte == delimiter {
+          if !includeDelimiter { collected.removeLast() }
+          return .success ( Data ( collected ) )
+        }
+
+        continue
+      }
+
+      if bytes_read == 0 { return .failure ( .closed ) }
+
+      if errno != 0 {
+        if errno == EINTR {
+          timeout = timeout.decrement ( elapsed: clock.elapsed() )
+          errno = 0
+          continue
+        }
+        else { return .failure ( .error ( .posix ( self, tag: "serial read" ) ) ) }
+      }
+    }
+  }
+
+
+
+  public func write ( _ data: Data, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Int, SyncIO.Error> {
+
+    if data.isEmpty { return .success ( 0 ) }
+
+    return data.withUnsafeBytes { buffer -> Result<Int, SyncIO.Error> in
+      guard let base = buffer.baseAddress else { return .success ( 0 ) }
+
+      var total_written = 0
+      var timeout       = timeout
+      var clock         = TimeoutClock()
+      let length        = buffer.count
+
+      while total_written < length {
+        if let error = check ( poll.timeout ( timeout, for: .write ) ) { return .failure ( error ) }
+
+        let wrote = posix_write ( descriptor, base.advanced ( by: total_written ), length - total_written )
+
+        if wrote > 0 {
+          total_written += wrote
+          continue
+        }
+
+        if wrote == 0 { return .failure ( .closed ) }
+
+        if errno != 0 {
+          if errno == EINTR {
+            timeout = timeout.decrement ( elapsed: clock.elapsed() )
+            errno = 0
+            continue
+          }
+
+          if errno == EAGAIN || errno == EWOULDBLOCK {
+            timeout = timeout.decrement ( elapsed: clock.elapsed() )
+            errno = 0
+            continue
+          }
+
+          if errno == EPIPE || errno == EBADF { return .failure ( .closed ) }
+
+          return .failure ( .error ( .posix ( self, tag: "serial write" ) ) )
+        }
+      }
+
+      return .success ( total_written )
+    }
+  }
+
   // convert a poll outcome to a SyncIO.Error (or nil, if no error)
   func check ( _ outcome: PosixPolling.PollOutcome ) -> SyncIO.Error? {
     switch outcome {
