@@ -22,7 +22,7 @@ public struct PosixPolling {
     let tag : String
     
     public static var read : Event = Event ( flag: posix_POLLIN,  tag: "read" )
-    public static var write: Event = Event ( flag: posix_POLLOUT, tag: "read" )
+    public static var write: Event = Event ( flag: posix_POLLOUT, tag: "write" )
   }
   
   // Outcome from calling poll_descriptor
@@ -81,7 +81,8 @@ public struct PosixPolling {
         if errno == EINTR {
           // if we got interrupted, reduce the timeout so we eventually complete
           // rather than just reapplying it and hoping.
-          milliseconds -= Int32 ( max(time.elapsed (since: start), 0) )
+          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: start), 0) )
+          errno = 0
           continue
         }
         else
@@ -144,10 +145,10 @@ public struct SyncIO {
     
     var buffer = [UInt8](repeating: 0, count: count)
     let start        = time.now()
-    var millseconds  = timeout.milliseconds
+    var milliseconds = timeout.milliseconds
     
     while true {
-      let remaining = PosixPolling.Timeout(milliseconds: millseconds)
+      let remaining = PosixPolling.Timeout(milliseconds: milliseconds)
       if let error = check ( poll.timeout(remaining, for: .read) ) { return .failure(error) }
       
       let bytes_read = buffer.withUnsafeMutableBytes { buffer in
@@ -156,7 +157,8 @@ public struct SyncIO {
       
       if errno != 0 {
         if errno == EINTR {
-          millseconds -= Int32 ( max(time.elapsed(since: start), 0) )
+          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: start), 0) )
+          errno = 0
           continue
         }
         else { return  .failure( .error(.posix(self, tag: "serial read")) ) }
@@ -184,7 +186,7 @@ public struct SyncIO {
       // we should wait if : 1) this is the first go around. 2) we encounter EINTR during read
       if should_wait {
         let remaining = PosixPolling.Timeout(milliseconds: milliseconds)
-        if let error = check ( poll.timeout(remaining, for: .write) ) { return .failure(error) }
+        if let error = check ( poll.timeout(remaining, for: .read) ) { return .failure(error) }
       }
       // otherwise we should poll the descriptor with no timeout
       else {
@@ -204,8 +206,9 @@ public struct SyncIO {
       // error. if it's EINTR just loop but decrement the timeout
       if bytes_read < 0 {
         if errno == EINTR {
-          milliseconds -= Int32 ( max (time.elapsed(since: start), 0) )
+          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: start), 0) )
           should_wait = true
+          errno = 0
           continue
         }
         else { return .failure(.error(.posix(self, tag: "serial read"))) }
