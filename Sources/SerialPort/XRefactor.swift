@@ -69,23 +69,19 @@ public struct PosixPolling {
   
   // MARK: internal implmentation
   
-  let time = PosixTimeElapsed()
+  
   
   func poll_descriptor ( _ descriptor: Int32, for event: Event, timeout: Timeout ) -> PollOutcome {
     
-    //if timeout == .indefinite { return .ready } // this hacky, we should catch this further up
     
-    var milliseconds = timeout.milliseconds
-    
-    
-    // create a polling struct for the descriptors and events we want to poll
-    var state = pollfd ( fd: descriptor, events: event.flag, revents: 0 )
-    var mark  = time.now()
+    var state   = pollfd ( fd: descriptor, events: event.flag, revents: 0 )
+    var timeout = timeout
+    var clock   = TimeoutClock()
     
     while true { // blocking loop - we will exit when we get a result or timeout
       
       let status = withUnsafeMutablePointer(to: &state) {
-        posix_poll ( $0, nfds_t(1), milliseconds )
+        posix_poll ( $0, nfds_t(1), timeout.milliseconds )
       }
       
       // error reported, but ...
@@ -93,8 +89,9 @@ public struct PosixPolling {
         if errno == EINTR {
           // if we got interrupted, reduce the timeout so we eventually complete
           // rather than just reapplying it and hoping.
-          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
-          mark = time.now()
+          timeout = timeout.decrement ( elapsed: clock.elapsed() )
+          // milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
+          // mark = time.now()
           errno = 0
           continue
         }
@@ -111,24 +108,45 @@ public struct PosixPolling {
 }
 
 
-public struct PosixTimeElapsed {
+//public struct PosixTimeElapsed {
+//
+//  // get a time
+//  public func now() -> timespec {
+//    var t = timespec()
+//    clock_gettime(CLOCK_MONOTONIC, &t)
+//    return t
+//  }
+//
+//  // time elapsed in µseconds
+//  public func elapsed ( since: timespec ) -> Int {
+//    var now = timespec()
+//    clock_gettime(CLOCK_MONOTONIC, &now)
+//    return Int((now.tv_sec  - since.tv_sec)  * 1000) + Int((now.tv_nsec - since.tv_nsec) / 1_000_000)
+//  }
+//}
+
+public struct TimeoutClock {
   
-  // get a time
-  public func now() -> timespec {
-    var t = timespec()
-    clock_gettime(CLOCK_MONOTONIC, &t)
-    return t
+  var last = timespec()
+  
+  init () {
+    clock_gettime(CLOCK_MONOTONIC, &last)
   }
   
-  // time elapsed in µseconds
-  public func elapsed ( since: timespec ) -> Int {
+  
+  mutating func elapsed() -> Int {
+    
     var now = timespec()
+    
     clock_gettime(CLOCK_MONOTONIC, &now)
-    return Int((now.tv_sec  - since.tv_sec)  * 1000) + Int((now.tv_nsec - since.tv_nsec) / 1_000_000)
+    
+    defer {
+      last = now
+    }
+    return Int((now.tv_sec  - last.tv_sec)  * 1000) + Int((now.tv_nsec - last.tv_nsec) / 1_000_000)
+    
   }
 }
-
-
 
 
 public struct SyncIO {
@@ -140,7 +158,7 @@ public struct SyncIO {
   }
   
   
-  let time       = PosixTimeElapsed()
+  
   let descriptor : Int32
   let poll       : PosixPolling
   
@@ -160,13 +178,13 @@ public struct SyncIO {
       )
     }
     
-    var buffer       = [UInt8](repeating: 0, count: count)
-    var mark         = time.now()
-    var milliseconds = timeout.milliseconds
+    var buffer  = [UInt8](repeating: 0, count: count)
+    var timeout = timeout
+    var clock   = TimeoutClock()
     
     while true {
-      let remaining = PosixPolling.Timeout(milliseconds: milliseconds)
-      if let error = check ( poll.timeout(remaining, for: .read) ) { return .failure(error) }
+      //let remaining = PosixPolling.Timeout(milliseconds: milliseconds)
+      if let error = check ( poll.timeout(timeout, for: .read) ) { return .failure(error) }
       
       let bytes_read = buffer.withUnsafeMutableBytes { buffer in
         posix_read ( descriptor, buffer.baseAddress, count )
@@ -179,8 +197,9 @@ public struct SyncIO {
       
       if errno != 0 {
         if errno == EINTR {
-          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
-          mark = time.now()
+          timeout = timeout.decrement(elapsed: clock.elapsed() )
+//          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
+//          mark = time.now()
           errno = 0
           continue
         }
@@ -197,18 +216,19 @@ public struct SyncIO {
   public func read ( timeout: PosixPolling.Timeout = .indefinite, maxbuffer: Int = 1024 ) -> Result<Data, SyncIO.Error> {
     
     
-    var milliseconds = timeout.milliseconds
+    //var milliseconds = timeout.milliseconds
     var collected    = [UInt8]()
     var should_wait  = true
     var buffer       = [UInt8](repeating: 0, count: maxbuffer)
-    var mark         = time.now()
+    var timeout      = timeout
+    var clock        = TimeoutClock()
     
     
     while true {
       // we should wait if : 1) this is the first go around. 2) we encounter EINTR during read
       if should_wait {
-        let remaining = PosixPolling.Timeout(milliseconds: milliseconds)
-        if let error = check ( poll.timeout(remaining, for: .read) ) { return .failure(error) }
+        //let remaining = PosixPolling.Timeout(milliseconds: milliseconds)
+        if let error = check ( poll.timeout(timeout, for: .read) ) { return .failure(error) }
       }
       // otherwise we should poll the descriptor with no timeout
       else {
@@ -228,8 +248,9 @@ public struct SyncIO {
       // error. if it's EINTR just loop but decrement the timeout
       if bytes_read < 0 {
         if errno == EINTR {
-          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
-          mark = time.now()
+          timeout = timeout.decrement(elapsed: clock.elapsed() )
+          //          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
+          //          mark = time.now()
           should_wait = true
           errno = 0
           continue
