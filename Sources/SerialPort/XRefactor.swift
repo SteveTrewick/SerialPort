@@ -250,10 +250,8 @@ public struct SyncIO {
       // error. if it's EINTR just loop but decrement the timeout
       if bytes_read < 0 {
         if errno == EINTR {
-          timeout = timeout.decrement(elapsed: clock.elapsed() )
-          //          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
-          //          mark = time.now()
-          should_wait = true
+          timeout     = timeout.decrement(elapsed: clock.elapsed() )
+          should_wait = collected.isEmpty
           errno = 0
           continue
         }
