@@ -20,7 +20,7 @@ public struct PosixPolling {
                           : Timeout (milliseconds: Int32 ( max ( Int(milliseconds) - elapsed, 0 ) ))
     }
     
-    public static var  none       : Timeout = Timeout ( milliseconds: 0  )
+    public static var  zero       : Timeout = Timeout ( milliseconds: 0  )
     public static var  indefinite : Timeout = Timeout ( milliseconds: -1 )
     public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
   }
@@ -59,7 +59,7 @@ public struct PosixPolling {
   
   // poll with no timeout,
   public func immediate ( for event: Event ) -> ImmediatePollOutcome {
-    switch poll_descriptor ( descriptor, for: event, timeout: .none ) {
+    switch poll_descriptor ( descriptor, for: event, timeout: .zero ) {
       case .ready             : return .ready
       case .timeout           : return .idle
       case .error (let trace) : return .error(trace)
@@ -281,7 +281,10 @@ public struct SyncIO {
 
     while true {
       if let error = check ( poll.timeout(timeout, for: .read) ) { return .failure(error) }
-
+      
+      timeout = timeout.decrement ( elapsed: clock.elapsed() )
+      if timeout == .zero { return .failure (.timeout) }
+      
       var byte : UInt8 = 0
       let bytes_read = withUnsafeMutablePointer(to: &byte) {
         posix_read ( descriptor, $0, 1 )
@@ -312,10 +315,10 @@ public struct SyncIO {
   }
 
 
-
+  
   public func write ( _ data: Data, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Int, SyncIO.Error> {
 
-    if data.isEmpty { return .success ( 0 ) }
+    if data.isEmpty { return .success ( 0 ) } //TODO: this is an error, not a success
 
     return data.withUnsafeBytes { buffer -> Result<Int, SyncIO.Error> in
       guard let base = buffer.baseAddress else { return .success ( 0 ) }
@@ -326,8 +329,12 @@ public struct SyncIO {
       let length        = buffer.count
 
       while total_written < length {
+        
         if let error = check ( poll.timeout ( timeout, for: .write ) ) { return .failure ( error ) }
-
+        
+        timeout = timeout.decrement ( elapsed: clock.elapsed() )
+        if timeout == .zero { return .failure(.timeout) }
+        
         let wrote = posix_write ( descriptor, base.advanced ( by: total_written ), length - total_written )
 
         if wrote > 0 {
