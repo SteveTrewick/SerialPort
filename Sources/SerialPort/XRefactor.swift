@@ -283,7 +283,7 @@ public struct SyncIO {
       if let error = check ( poll.timeout(timeout, for: .read) ) { return .failure(error) }
       
       timeout = timeout.decrement ( elapsed: clock.elapsed() )
-      if timeout == .zero { return .failure (.timeout) }
+      //if timeout == .zero { return .failure (.timeout) }
       
       var byte : UInt8 = 0
       let bytes_read = withUnsafeMutablePointer(to: &byte) {
@@ -333,7 +333,7 @@ public struct SyncIO {
         if let error = check ( poll.timeout ( timeout, for: .write ) ) { return .failure ( error ) }
         
         timeout = timeout.decrement ( elapsed: clock.elapsed() )
-        if timeout == .zero { return .failure(.timeout) }
+        //if timeout == .zero { return .failure(.timeout) }
         
         let wrote = posix_write ( descriptor, base.advanced ( by: total_written ), length - total_written )
 
