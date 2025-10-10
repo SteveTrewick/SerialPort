@@ -132,8 +132,16 @@ public struct SyncIO {
   let poll       : PosixPolling
   
   public init ( descriptor : Int32 ) {
+    
+    // clear O_NONBLOCK if it was set since we are doing sync read/write now
+    // should probably have some errror checks
+    var flags = fcntl(descriptor, F_GETFL, 0)
+    flags &= ~O_NONBLOCK
+    _ = fcntl(descriptor, F_SETFL, flags)
+    
     self.descriptor = descriptor
     self.poll       = PosixPolling(descriptor: descriptor)
+  
   }
   
 
