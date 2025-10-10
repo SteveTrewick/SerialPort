@@ -12,7 +12,7 @@ public struct PosixPolling {
     
     let milliseconds : Int32
     
-    public static var  none : Timeout = Timeout ( milliseconds: 0 )
+    public static var  none : Timeout = Timeout ( milliseconds: -255 )
     public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
   }
   
@@ -50,7 +50,7 @@ public struct PosixPolling {
   
   // poll with no timeout,
   public func immediate ( for event: Event ) -> ImmediatePollOutcome {
-    switch poll_descriptor(descriptor, for: event, timeout: .none) {
+    switch poll_descriptor ( descriptor, for: event, timeout: .wait(0) ) {
       case .ready             : return .ready
       case .timeout           : return .idle
       case .error (let trace) : return .error(trace)
