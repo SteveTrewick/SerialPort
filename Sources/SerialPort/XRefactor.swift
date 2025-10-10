@@ -1,5 +1,6 @@
 
 import Foundation
+import Trace // file compiles without this, but it ought not to really.
 
 public struct PosixPolling {
   
@@ -7,7 +8,7 @@ public struct PosixPolling {
   let descriptor : Int32
   
   // model the timeout behaviour, polling is either immediate or with a timeout defined in µseconds
-  public struct Timeout {
+  public struct Timeout : Equatable {
     
     let milliseconds : Int32
     
@@ -63,12 +64,14 @@ public struct PosixPolling {
   
   func poll_descriptor ( _ descriptor: Int32, for event: Event, timeout: Timeout ) -> PollOutcome {
     
+    if timeout == .none { return .ready } // this hacky, we should catch this further up
+    
     var milliseconds = timeout.milliseconds
     
     
     // create a polling struct for the descriptors and events we want to poll
     var state = pollfd ( fd: descriptor, events: event.flag, revents: 0 )
-    let start = time.now()
+    var mark  = time.now()
     
     while true { // blocking loop - we will exit when we get a result or timeout
       
@@ -81,7 +84,8 @@ public struct PosixPolling {
         if errno == EINTR {
           // if we got interrupted, reduce the timeout so we eventually complete
           // rather than just reapplying it and hoping.
-          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: start), 0) )
+          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
+          mark = time.now()
           errno = 0
           continue
         }
@@ -143,8 +147,8 @@ public struct SyncIO {
       )
     }
     
-    var buffer = [UInt8](repeating: 0, count: count)
-    let start        = time.now()
+    var buffer       = [UInt8](repeating: 0, count: count)
+    var mark         = time.now()
     var milliseconds = timeout.milliseconds
     
     while true {
@@ -157,7 +161,8 @@ public struct SyncIO {
       
       if errno != 0 {
         if errno == EINTR {
-          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: start), 0) )
+          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
+          mark = time.now()
           errno = 0
           continue
         }
@@ -179,7 +184,7 @@ public struct SyncIO {
     var collected    = [UInt8]()
     var should_wait  = true
     var buffer       = [UInt8](repeating: 0, count: maxbuffer)
-    let start        = time.now()
+    var mark         = time.now()
     
     
     while true {
@@ -206,7 +211,8 @@ public struct SyncIO {
       // error. if it's EINTR just loop but decrement the timeout
       if bytes_read < 0 {
         if errno == EINTR {
-          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: start), 0) )
+          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
+          mark = time.now()
           should_wait = true
           errno = 0
           continue
