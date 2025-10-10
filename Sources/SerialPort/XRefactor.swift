@@ -12,7 +12,8 @@ public struct PosixPolling {
     
     let milliseconds : Int32
     
-    public static var  none : Timeout = Timeout ( milliseconds: -1 )
+    public static var  none       : Timeout = Timeout ( milliseconds: 0  )
+    public static var  indefinite : Timeout = Timeout ( milliseconds: -1 )
     public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
   }
   
@@ -50,7 +51,7 @@ public struct PosixPolling {
   
   // poll with no timeout,
   public func immediate ( for event: Event ) -> ImmediatePollOutcome {
-    switch poll_descriptor ( descriptor, for: event, timeout: .wait(0) ) {
+    switch poll_descriptor ( descriptor, for: event, timeout: .none ) {
       case .ready             : return .ready
       case .timeout           : return .idle
       case .error (let trace) : return .error(trace)
@@ -64,7 +65,7 @@ public struct PosixPolling {
   
   func poll_descriptor ( _ descriptor: Int32, for event: Event, timeout: Timeout ) -> PollOutcome {
     
-    if timeout == .none { return .ready } // this hacky, we should catch this further up
+    //if timeout == .indefinite { return .ready } // this hacky, we should catch this further up
     
     var milliseconds = timeout.milliseconds
     
@@ -127,26 +128,19 @@ public struct SyncIO {
      case error(Trace)
   }
   
+  
   let time       = PosixTimeElapsed()
   let descriptor : Int32
   let poll       : PosixPolling
   
   public init ( descriptor : Int32 ) {
-    
-    // clear O_NONBLOCK if it was set since we are doing sync read/write now
-    // should probably have some errror checks
-    var flags = fcntl(descriptor, F_GETFL, 0)
-    flags &= ~O_NONBLOCK
-    _ = fcntl(descriptor, F_SETFL, flags)
-    
     self.descriptor = descriptor
     self.poll       = PosixPolling(descriptor: descriptor)
-  
   }
   
 
   
-  public func read ( count: Int, timeout: PosixPolling.Timeout = .none ) -> Result<Data, SyncIO.Error> {
+  public func read ( count: Int, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Data, SyncIO.Error> {
   
     // bail if we have a dumb parameter, how ya gonna read -12 bytes, dumbass
     guard count > 0 else {
@@ -167,6 +161,11 @@ public struct SyncIO {
         posix_read ( descriptor, buffer.baseAddress, count )
       }
       
+      if bytes_read >= 0 {
+        return bytes_read > 0 ? .success ( Data ( bytes: buffer, count: bytes_read ) )
+                              : .failure ( .closed )
+      }
+      
       if errno != 0 {
         if errno == EINTR {
           milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
@@ -177,15 +176,14 @@ public struct SyncIO {
         else { return  .failure( .error(.posix(self, tag: "serial read")) ) }
       }
       
-      return bytes_read > 0 ? .success ( Data ( bytes: buffer, count: bytes_read ) )
-                            : .failure ( .closed )
+      
     }
   }
   
   
   
   
-  public func read ( timeout: PosixPolling.Timeout = .none, maxbuffer: Int = 1024 ) -> Result<Data, SyncIO.Error> {
+  public func read ( timeout: PosixPolling.Timeout = .indefinite, maxbuffer: Int = 1024 ) -> Result<Data, SyncIO.Error> {
     
     
     var milliseconds = timeout.milliseconds
