@@ -12,6 +12,14 @@ public struct PosixPolling {
     
     let milliseconds : Int32
     
+    
+    // if we indefinite, do nothing, we burn eternal
+    // otherwise, subtract some millis but don't go below 0
+    func decrement ( elapsed: Int ) -> Timeout {
+      self == .indefinite ? .indefinite
+                          : Timeout (milliseconds: Int32 ( max ( Int(milliseconds) - elapsed, 0 ) ))
+    }
+    
     public static var  none       : Timeout = Timeout ( milliseconds: 0  )
     public static var  indefinite : Timeout = Timeout ( milliseconds: -1 )
     public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
@@ -119,6 +127,9 @@ public struct PosixTimeElapsed {
     return Int((now.tv_sec  - since.tv_sec)  * 1000) + Int((now.tv_nsec - since.tv_nsec) / 1_000_000)
   }
 }
+
+
+
 
 public struct SyncIO {
   
