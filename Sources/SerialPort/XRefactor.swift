@@ -12,7 +12,7 @@ public struct PosixPolling {
     
     let milliseconds : Int32
     
-    public static var  none : Timeout = Timeout ( milliseconds: -255 )
+    public static var  none : Timeout = Timeout ( milliseconds: -1 )
     public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
   }
   
