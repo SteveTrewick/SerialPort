@@ -305,6 +305,8 @@ io.write(Data ("hello world".utf8)) { result in
 }
 ```
 
+## Timeouts
+
 All of these APIs accept an optional `SerialPort.Timeout` value. If you provide
 one, the completion handler receives `.failure(.timeout)` when the deadline
 passes without satisfying the request. When a timeout is omitted the read waits
@@ -314,7 +316,8 @@ rules, calling back with `.failure(.timeout)` if the write does not finish befor
 the deadline.
 
 You can construct timeout values using the helpers on `Timeout`, such as
-`.seconds(_):`
+`.seconds(_):`,  `.milliseconds(_)`, `.none` (equivalent to 0) or `.indefinite` 
+which waits forever.
 
 ```swift
 let port: SerialPort = // ...
