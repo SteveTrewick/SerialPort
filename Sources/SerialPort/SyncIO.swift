@@ -3,6 +3,24 @@ import Foundation
 import Trace
 
 
+
+/*
+  SyncIO gives us a reasonably ergonomic synchronous serial API.
+ 
+  This particular piece of code, along with PosixPolling and TimeoutClock
+  represent the result of, basically, an almost two day long argument I
+  had with Codex in which it keot dropping code that I hated and would refactor.
+ 
+  Eventually, we went through a sort of reverse QA cycle where I was
+  rewriting the API and throwing parts up to codex to ensure cases were
+  covered. Then I had codex flesh out the rest.
+ 
+  This has been an odd experience, tbqhwyf. The result is a somewhat AI
+  acceerated API that now looks like it would have done if I had written
+  all of it, which is what I wanted. But really, does it even matter now?
+*/
+
+
 // extend us on to the SerialPort
 public extension SerialPort {
 
