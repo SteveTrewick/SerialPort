@@ -85,7 +85,7 @@ public class SerialPort {
   // termios, but if you find yourself doing this, you should be adding
   // proper config opts. m'kay?
   
-  public func ocnfigure(options: termios) {
+  public func configure(options: termios) {
     var options = options
     tcsetattr(descriptor, TCSANOW, &options)
   }
