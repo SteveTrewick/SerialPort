@@ -36,9 +36,9 @@ public struct SyncIO {
   /// Error cases surfaced by the synchronous API.
   public enum Error: Swift.Error {
      case timeout
-     case closed
-     case fault(Trace)
-     case error(Trace)
+     case closed          /// rude!
+     case fault ( Trace ) /// horrible pointer fault, sign of the end times
+     case error ( Trace ) /// something went wrong in an unplanned way
   }
   
   
