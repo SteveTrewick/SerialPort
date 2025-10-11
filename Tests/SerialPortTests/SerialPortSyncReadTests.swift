@@ -5,7 +5,7 @@ import XCTest
 final class SerialPortSyncReadTests: XCTestCase {
 
     func testReadReturnsData() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         context.asyncWrite("hello")
@@ -21,7 +21,7 @@ final class SerialPortSyncReadTests: XCTestCase {
     }
 
     func testReadTimesOutWhenNoDataArrives() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         let result = context.serial.syncIO.read(count: 1, timeout: .seconds(0.1))
@@ -39,7 +39,7 @@ final class SerialPortSyncReadTests: XCTestCase {
     }
 
     func testReadReportsClosedDescriptor() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         context.writer.closeFile()
@@ -59,7 +59,7 @@ final class SerialPortSyncReadTests: XCTestCase {
     }
 
     func testReadDrainReturnsAvailableBytes() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         context.asyncWrite("drain")
@@ -75,7 +75,7 @@ final class SerialPortSyncReadTests: XCTestCase {
     }
 
     func testReadDrainWithZeroTimeoutAndNoDataTimesOut() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         let result = context.serial.syncIO.read(timeout: .zero)
@@ -93,7 +93,7 @@ final class SerialPortSyncReadTests: XCTestCase {
     }
 
     func testReadUntilDelimiterExcludesDelimiter() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         context.asyncWrite("hello\nworld")
@@ -119,7 +119,7 @@ final class SerialPortSyncReadTests: XCTestCase {
     }
 
     func testReadUntilDelimiterIncludesDelimiter() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         context.asyncWrite("foo\n")
@@ -136,7 +136,7 @@ final class SerialPortSyncReadTests: XCTestCase {
     }
 
     func testReadUntilDelimiterTimesOut() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         context.asyncWrite("abc")
@@ -157,7 +157,7 @@ final class SerialPortSyncReadTests: XCTestCase {
     }
 
     func testReadDrainReportsClosedDescriptor() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         context.writer.closeFile()
@@ -177,7 +177,7 @@ final class SerialPortSyncReadTests: XCTestCase {
     }
 
     func testReadUntilDelimiterReportsClosedDescriptor() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         context.writer.closeFile()
@@ -198,7 +198,7 @@ final class SerialPortSyncReadTests: XCTestCase {
     }
 
     func testCheckTranslatesClosedOutcome() throws {
-        let context = try SerialBufferedReaderTests.PipeContext()
+        let context = try AsyncIOTests.PipeContext()
         defer { context.closeDescriptors() }
 
         let syncIO = context.serial.syncIO
