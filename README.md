@@ -34,7 +34,8 @@ worth noting:
 
 ### Quick start on Linux
 
-If you already know the path of your serial interface, you can open it directly:
+If you already know the path of your serial interface, you can open it directly and
+configure the connection like you would on macOS:
 
 ```swift
 import SerialPort
@@ -45,7 +46,9 @@ switch manager.open(path: "/dev/ttyUSB0") {
 case .failure(let trace):
   print("failed to open port", trace)
 case .success(let port):
-  try? port.configure(config: SerialConfig(baud: .baud_115200))
+  var config = SerialConfig()
+  config.baud = .baud_115200
+  try? port.configure(config: config)
   // use `port` like you would on macOS
 }
 ```
