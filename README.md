@@ -347,11 +347,23 @@ reader.read { result in
 }
 ```
 
-All of these APIs accept an optional `DispatchTimeInterval` timeout. If you
-provide one, the completion handler receives `.failure(.timeout)` when the
-deadline passes without satisfying the request. When a timeout is omitted the
-read waits until enough bytes arrive, or in the case of the no-argument read,
-immediately drains and returns everything currently buffered.
+All of these APIs accept an optional `SerialPort.Timeout` value. If you provide
+one, the completion handler receives `.failure(.timeout)` when the deadline
+passes without satisfying the request. When a timeout is omitted the read waits
+until enough bytes arrive, or in the case of the no-argument read, immediately
+drains and returns everything currently buffered.
+
+You can construct timeout values using the helpers on `Timeout`, such as
+`.seconds(_):`
+
+```swift
+let port: SerialPort = // ...
+let reader = port.bufferedReader()
+
+reader.read(timeout: SerialPort.Timeout.seconds(0.5)) { result in
+  // handle timeout or success
+}
+```
 
 
 
