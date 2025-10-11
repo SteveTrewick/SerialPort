@@ -1,7 +1,7 @@
 # SerialPort
 
 A package for opening, configuring, reading from and writing to a serial port in Swift on macOS
-and Linux. It might work on iOS, dunno, haven't tried, maybe for bluetooth.
+and Linux. It might work on iOS, dunno, haven't tried, maybe for bluetooth? Let me know if you try!
 
 ## Linux compatibility - Experimental
 
@@ -32,56 +32,7 @@ worth noting:
   and vendor/product strings) on `SerialDevice` remains macOS-only, because those APIs
   depend on IOKit. Linux devices will report `nil` for those properties.
 
-### Quick start on Linux
 
-If you already know the path of your serial interface, you can open it directly and
-configure the connection like you would on macOS:
-
-```swift
-import SerialPort
-
-let manager = PortManager()
-
-switch manager.open(path: "/dev/ttyUSB0") {
-case .failure(let trace):
-  print("failed to open port", trace)
-case .success(let port):
-  var config = SerialConfig()
-  config.baud = .baud_115200
-  try? port.configure(config: config)
-  // use `port` like you would on macOS
-}
-```
-
-Or, discover available ports and pick one by basename:
-
-```swift
-let result = PortManager().enumeratePorts()
-
-if case let .success(devices) = result,
-   let device = devices.first(where: { $0.basename == "ttyUSB0" }) {
-  _ = PortManager().open(device: device)
-}
-```
-
-### Troubleshooting on Linux
-
-* `POSIXError.permissionDenied` – confirm your user is in the `dialout` (Debian/Ubuntu),
-  `uucp` (Arch), or `serial` (RHEL/Fedora) group, then log out/in. As a temporary
-  workaround you can run the process with elevated privileges.
-* `POSIXError.deviceBusy` – another process (like ModemManager) may have the port open.
-  Disable or stop the service, or unplug/replug the device to release the handle.
-* No ports are enumerated – check that your user has permissions and that the device is
-  exposed via `/dev/ttyUSB*` or `/dev/ttyACM*`. Some boards appear as `/dev/ttyS*` and
-  require passing the full path to `open(path:)`.
-
-## Termios
-This is an incomplete implementation as of the yet, particularly with regards to the full 
-set of termios options and is highly experimental. Honestly, this whole thing got way out 
-of hand while I was just building something tofling a couple of bytes at an Arduino so that 
-I can trigger a radio PTT. You can directly specify termios options through `port.configure` 
-as shown below. 
- 
 
 ## PortManager
 
@@ -119,7 +70,7 @@ switch result {
 
 ```
 
-If this succeeds (and it should) you will get an array of ```SerialDevice``` which looks like this :
+If this succeeds you will get an array of ```SerialDevice``` which looks like this :
 
 ```swift
 
@@ -156,7 +107,7 @@ Congratulations! You are now in posession of a fully operational serial port!
 
 Now you will need to configure it.
 
-For brevity, I will just show you the options struct, which by default will set up as 9600 8N1, as is tradition
+For brevity, I will just show you the options struct, which by default will set up as 9600 8N1, as is tradition.
 
 ```swift
 
@@ -170,7 +121,7 @@ public struct SerialConfig {
 
 ```
 
-Set whatever of the available options you need and then fling them at the port instance
+Set whatever of the available options you need and then fling them at the port instance.
 
 ```swift
 port.configure(config: serialConfig)
@@ -178,7 +129,7 @@ port.configure(config: serialConfig)
 ```
 
 If the available options aren't enough, and frankly they probably aren't at this stage, 
-you can grab the existing termios config, bit bang it and send it back, thusly
+you can grab the existing termios config, bit bang it and send it back, thusly :
 
 ```swift
 
@@ -244,25 +195,29 @@ port.stream.cancel() {
 ```
 
 
+
+## Sync and Async APIs
+
+Oh, you _didn't_ like that? Fair enough. While the above may be enough to pop up a simple 
+read/write loop it needs a lot of extra plumbing to do anything especially useful so SerialPort
+now offers two fairly lightweight read/write APIs one synchronous and one asynchronous.
+
+
 ## Synchronous I/O
 
-Oh, you _didn't_ like that? Need to block the current thread until bytes arrive? Grab a `SyncIO`
+Need to block the current thread until bytes arrive? Grab a `SyncIO`
 helper and handle the `Result<Data, SyncIO.Error>` it returns:
 
 ```swift
 let port: SerialPort = // ...
 let io   = port.syncIO
 
-switch io.read(count: 16, timeout: .seconds(2)) {
-case .success(let bytes):
-  print("received", bytes)
-case .failure(.timeout):
-  print("nothing arrived before the 2 second timeout")
-case .failure(.closed):
-  print("the other side closed the connection")
-case .failure(.trace(let trace)):
-  print("posix error", trace)
-}
+switch io.read ( count: 16, timeout: .seconds(2) ) {
+  case .success ( let bytes         ) : print ( "received", bytes )
+  case .failure ( .timeout          ) : print ( "nothing arrived before the 2 second timeout" )
+  case .failure ( .closed           ) : print ( "the other side closed the connection" )
+  case .failure ( .trace(let trace) ) : print ( "posix error", trace )
+}  
 ```
 
 When you omit the timeout the call blocks until bytes are ready, matching the
@@ -273,29 +228,25 @@ variant to wait for the first byte and then slurp everything immediately
 available:
 
 ```swift
-let drained = io.read(timeout: .seconds(1))
+let drained = io.read ( timeout: .seconds(1) )
 ```
 
 Or if you're looking for a delimiter, there's a helper that keeps reading until
 it arrives, with an option to retain the delimiter in the returned data:
 
 ```swift
-let line = io.read(until: 0x0A, includeDelimiter: true, timeout: .seconds(1))
+let line = io.read ( until: 0x0A, includeDelimiter: true, timeout: .seconds(1) )
 ```
 
 Need to push bytes out on the calling thread? Use the synchronous write helper
 and handle the `Result<Int, SyncIO.Error>`:
 
 ```swift
-switch io.write(Data("OK".utf8), timeout: .seconds(1)) {
-case .success(let count):
-  print("sent", count, "bytes")
-case .failure(.timeout):
-  print("the descriptor never became writable")
-case .failure(.closed):
-  print("the peer closed before the write completed")
-case .failure(.trace(let trace)):
-  print("posix error", trace)
+switch io.write ( Data ("OK".utf8), timeout: .seconds(1) ) {
+  case .success ( let count         ) : print ( "sent", count, "bytes" )
+  case .failure ( .timeout          ) : print ( "the descriptor never became writable" )
+  case .failure ( .closed           ) : print ( "the peer closed before the write completed" )
+  case .failure ( .trace(let trace) ) : print ( "posix error", trace )
 }
 ```
 
@@ -325,7 +276,7 @@ let port: SerialPort = // ...
 let io = port.asyncIO()
 
 // read an exact number of bytes
-io.read(count: 8) { result in
+io.read ( count: 8 ) { result in
   switch result {
     case .success(let bytes): print("received", bytes)
     case .failure(let error): print("read failed", error)
@@ -333,27 +284,23 @@ io.read(count: 8) { result in
 }
 
 // read until a newline (and include it in the returned Data)
-io.read(until: 0x0A, includeDelimiter: true) { result in
+io.read ( until: 0x0A, includeDelimiter: true ) { result in
   // handle the same way as above
 }
 
 // drain whatever is currently buffered (and optionally wait for more)
 io.read { result in
   switch result {
-    case .success(let bytes):
-      print("flushed", bytes)
-    case .failure(let error):
-      print("read failed", error)
+    case .success ( let bytes ) : print("flushed", bytes)
+    case .failure ( let error ) : print("read failed", error)
   }
 }
 
 // kick off an asynchronous write and learn how many bytes went out
-io.write(Data("hello world".utf8)) { result in
+io.write ( Data ("hello world".utf8) ) { result in
   switch result {
-    case .success(let sent):
-      print("wrote", sent, "bytes")
-    case .failure(let error):
-      print("write failed", error)
+    case .success ( let sent  ) : print("wrote", sent, "bytes")
+    case .failure ( let error ) : print("write failed", error)
   }
 }
 ```
@@ -373,11 +320,11 @@ You can construct timeout values using the helpers on `Timeout`, such as
 let port: SerialPort = // ...
 let io = port.asyncIO()
 
-io.read(timeout: SerialPort.Timeout.seconds(0.5)) { result in
+io.read ( timeout: SerialPort.Timeout.seconds(0.5) ) { result in
   // handle timeout or success
 }
 
-io.write(Data([0x7F]), timeout: SerialPort.Timeout.seconds(0.5)) { result in
+io.write ( Data ([0x7F]), timeout: SerialPort.Timeout.seconds(0.5) ) { result in
   // handle timeout or success
 }
 ```
@@ -436,8 +383,8 @@ serial.configure(config: config)
 
 serial.stream.handler = { result in
   switch result {
-    case .failure(let trace) : print(trace); exit(1)
-    case .success(let data ) : print( String(data: data, encoding: .ascii) ?? "[failed]", terminator: "" )
+    case .failure ( let trace ) : print ( trace ); exit(1)
+    case .success ( let data  ) : print ( String ( data: data, encoding: .ascii ) ?? "[failed]", terminator: "" )
   }
 }
 
@@ -448,15 +395,15 @@ serial.stream.resume()
 // on the arduino echo program and our dispatch handler also needs some time
 
 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-  serial.send(data: "hi there!\n".data(using: .ascii)! ) { result in
+  serial.send ( data: "hi there!\n".data(using: .ascii)! ) { result in
     switch result {
-      case .failure(let trace) : print(trace); exit(1)
-      case .success(let count) : print("sent \(count) bytes")
+      case .failure ( let trace ) : print(trace); exit(1)
+      case .success ( let count ) : print("sent \(count) bytes")
     }
   }
   
   // of course, we can just do this and not care about the error...
-  serial.send(data: "I dont care!".data(using: .ascii)!)
+  serial.send ( data: "I dont care!".data(using: .ascii)! )
   
 }
 
