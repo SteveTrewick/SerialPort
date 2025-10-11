@@ -96,7 +96,7 @@ public struct PosixPolling {
      
       If we encounter one of these errors we loop and retry - *but* we burn some of
       the timeout instead of blindly reapplying it so we don't get stuck forever or
-      for much longer than we sepcified.
+      for much longer than we specified.
     */
     
     var state   = pollfd ( fd: descriptor, events: event.flag, revents: 0 )

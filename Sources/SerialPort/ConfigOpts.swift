@@ -21,7 +21,7 @@ import Darwin
 // these consts are imported, but we can (AFAIK) only use these values
 // and we have to use literals for our enum initialisation, not consts
 
-// still, this way we get a caseiterable that we can use in a list
+// still, this way we get a CaseIterable that we can use in a list
 // and better autocomplete, copy copy, pasty pasty.
 
 public enum BaudRate : CaseIterable {

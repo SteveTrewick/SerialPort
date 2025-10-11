@@ -14,12 +14,12 @@ extension PortManager {
 
       2) There will be those who say "but Steve [it me!], IOKit won't work with
          muh virtual TTY cuz only muh /dev/cu*. This is not true, as we will see,
-         its just that the devs who used IOKit to do this only knew one const and were
-         to fucking lazy to look up the others. Go ahead, @ me
+         it's just that the devs who used IOKit to do this only knew one const and were
+         too fucking lazy to look up the others. Go ahead, @ me
 
       3) Seriously though, if your use case is linux or virtual TTYs you probably
          want to find a better, more mature, less idiosyncratic (sp?) package
-         rather than I hacked up to cock about with for fun on Frday nights while
+         rather than I hacked up to cock about with for fun on Friday nights while
          I'm drunk.
 
       4) Anyhooo ...
@@ -48,7 +48,7 @@ extension PortManager {
           devices.append (
             SerialDevice (
               basename: base,
-              // yes, fantasically, these consts are not imported into swift by IOKit,
+              // yes, fantastically, these consts are not imported into swift by IOKit,
               // we could use a bridging header but I am long since past touching Obj C
               // and these appear precisely once, here, so, eh. They won't change. Probably.
               // notice that we pull both the cu and tty, so if your device is virtual,

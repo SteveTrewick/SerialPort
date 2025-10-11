@@ -9,14 +9,14 @@ import Trace
  
   This particular piece of code, along with PosixPolling and TimeoutClock
   represent the result of, basically, an almost two day long argument I
-  had with Codex in which it keot dropping code that I hated and would refactor.
+  had with Codex in which it kept dropping code that I hated and would refactor.
  
   Eventually, we went through a sort of reverse QA cycle where I was
   rewriting the API and throwing parts up to codex to ensure cases were
   covered. Then I had codex flesh out the rest.
  
   This has been an odd experience, tbqhwyf. The result is a somewhat AI
-  acceerated API that now looks like it would have done if I had written
+  accelerated API that now looks like it would have done if I had written
   all of it, which is what I wanted. But really, does it even matter now?
 */
 
@@ -174,7 +174,7 @@ public struct SyncIO {
       // error.
       if bytes_read < 0 {
 
-        // if its one of these, we burn some time and go again, repolling if we
+        // if it's one of these, we burn some time and go again, repolling if we
         // haven't started collecting chars yet.
         if errno == EFAULT {
           return .failure ( .fault ( .trace ( self, tag: "streaming read buffer fault" ) ) )
@@ -238,7 +238,7 @@ public struct SyncIO {
       if bytes_read > 0 {
         collected.append ( byte )
         
-        // are these the driods we're looking for?
+        // are these the droids we're looking for?
         if byte == delimiter {
           if !includeDelimiter { collected.removeLast() }
           return .success ( Data ( collected ) )
@@ -287,7 +287,7 @@ public struct SyncIO {
     // which you should fix. no silent noop for you.
     guard data.count > 0 else {
       return .failure (
-        .error ( .trace (self, tag: "data.count muxt be > 0" ) )
+        .error ( .trace (self, tag: "data.count must be > 0" ) )
       )
     }
     
@@ -301,7 +301,7 @@ public struct SyncIO {
       // poll, check for error and bail if we get one
       if let error = check ( poll.timeout ( timeout, for: .write ) ) { return .failure ( error ) }
 
-      // burn the timer becuase the timeout covers the whole write
+      // burn the timer because the timeout covers the whole write
       timeout = timeout.decrement ( elapsed: clock.elapsed() )
 
       // try and write some bytes.
@@ -325,7 +325,7 @@ public struct SyncIO {
       // we are in error, but which one?
       if errno != 0 {
         
-        // if its one of these lads, we go around again
+        // if it's one of these lads, we go around again
         if errno == EFAULT {
           return .failure ( .fault ( .trace ( self, tag: "sync write buffer fault" ) ) )
         }
