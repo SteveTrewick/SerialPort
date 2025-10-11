@@ -1,169 +1,19 @@
 
 import Foundation
-import Trace // file compiles without this, but it ought not to really.
-
-public struct PosixPolling {
-  
-  
-  let descriptor : Int32
-  
-  // model the timeout behaviour, polling is either immediate or with a timeout defined in µseconds
-  public struct Timeout : Equatable {
-
-    let milliseconds : Int32
-    
-    
-    // if we indefinite, do nothing, we burn eternal
-    // otherwise, subtract some millis but don't go below 0
-    func decrement ( elapsed: Int ) -> Timeout {
-      self == .indefinite ? .indefinite
-                          : Timeout (milliseconds: Int32 ( max ( Int(milliseconds) - elapsed, 0 ) ))
-    }
-    
-    public static var  zero       : Timeout = Timeout ( milliseconds: 0  )
-    public static var  indefinite : Timeout = Timeout ( milliseconds: -1 )
-    public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
-
-    public static func seconds ( _ interval: TimeInterval ) -> Timeout {
-
-      if interval.isInfinite { return .indefinite }
-
-      if interval <= 0 { return .zero }
-
-      let milliseconds = Int ( ( interval * 1000 ).rounded (.up) )
-
-      let clamped      = min ( Int ( Int32.max ), milliseconds )
-
-      return .wait ( Int32 ( clamped ) )
-    }
-  }
-  
-  // model the flag and tag for read/write, we use the tags for descriptive errors
-  public struct Event {
-    
-    let flag: Int16
-    let tag : String
-    
-    public static var read : Event = Event ( flag: posix_POLLIN,  tag: "read" )
-    public static var write: Event = Event ( flag: posix_POLLOUT, tag: "write" )
-  }
-  
-  // Outcome from calling poll_descriptor
-  public enum PollOutcome {
-    case ready
-    case timeout
-    case error(Trace)
-  }
-  
-  // outcome of immediate polling
-  public enum ImmediatePollOutcome {
-    case ready
-    case idle
-    case error(Trace)
-  }
-  
-  
-  // MARK: Public API
-  
-  // poll with a timeout
-  public func timeout ( _ timeout: Timeout, for event: Event ) -> PollOutcome {
-    poll_descriptor ( descriptor, for: event, timeout: timeout )
-  }
-  
-  // poll with no timeout,
-  public func immediate ( for event: Event ) -> ImmediatePollOutcome {
-    switch poll_descriptor ( descriptor, for: event, timeout: .zero ) {
-      case .ready             : return .ready
-      case .timeout           : return .idle
-      case .error (let trace) : return .error(trace)
-    }
-  }
-  
-  
-  // MARK: internal implmentation
-  
-  
-  
-  func poll_descriptor ( _ descriptor: Int32, for event: Event, timeout: Timeout ) -> PollOutcome {
-    
-    
-    var state   = pollfd ( fd: descriptor, events: event.flag, revents: 0 )
-    var timeout = timeout
-    var clock   = TimeoutClock()
-    
-    while true { // blocking loop - we will exit when we get a result or timeout
-      
-      let status = withUnsafeMutablePointer(to: &state) {
-        posix_poll ( $0, nfds_t(1), timeout.milliseconds )
-      }
-      
-      // error reported, but ...
-      if status < 0 {
-        if errno == EINTR {
-          // if we got interrupted, reduce the timeout so we eventually complete
-          // rather than just reapplying it and hoping.
-          timeout = timeout.decrement ( elapsed: clock.elapsed() )
-          // milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
-          // mark = time.now()
-          errno = 0
-          continue
-        }
-        else
-        {
-          return .error ( .posix ( self, tag: event.tag ) )
-        }
-      }
-      
-      return status > 0 ? .ready : .timeout
-    }
-  }
-  
-}
+import Trace
 
 
-//public struct PosixTimeElapsed {
-//
-//  // get a time
-//  public func now() -> timespec {
-//    var t = timespec()
-//    clock_gettime(CLOCK_MONOTONIC, &t)
-//    return t
-//  }
-//
-//  // time elapsed in µseconds
-//  public func elapsed ( since: timespec ) -> Int {
-//    var now = timespec()
-//    clock_gettime(CLOCK_MONOTONIC, &now)
-//    return Int((now.tv_sec  - since.tv_sec)  * 1000) + Int((now.tv_nsec - since.tv_nsec) / 1_000_000)
-//  }
-//}
+// extend us on to the SerialPort
+public extension SerialPort {
 
-public struct TimeoutClock {
-  
-  var last = timespec()
-  
-  init () {
-    clock_gettime(CLOCK_MONOTONIC, &last)
-  }
-  
-  
-  mutating func elapsed() -> Int {
-    
-    var now = timespec()
-    
-    clock_gettime(CLOCK_MONOTONIC, &now)
-    
-    defer {
-      last = now
-    }
-    return Int((now.tv_sec  - last.tv_sec)  * 1000) + Int((now.tv_nsec - last.tv_nsec) / 1_000_000)
-    
-  }
+  var syncIO : SyncIO { SyncIO ( descriptor: descriptor ) }
 }
 
 
 public struct SyncIO {
   
+  
+  // error surfaced by the public API
   public enum Error: Swift.Error {
      case timeout
      case closed
@@ -172,53 +22,56 @@ public struct SyncIO {
   
   
   
-  let descriptor : Int32
-  let poll       : PosixPolling
+  let descriptor : Int32         // wrapped FD
+  let poll       : PosixPolling  // poll wrapper, for polling
+  
   
   public init ( descriptor : Int32 ) {
     self.descriptor = descriptor
-    self.poll       = PosixPolling(descriptor: descriptor)
+    self.poll       = PosixPolling ( descriptor: descriptor )
   }
   
 
   
   public func read ( count: Int, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Data, SyncIO.Error> {
 
-    if count == 0 { return .success ( Data() ) }
-
     // bail if we have a dumb parameter, how ya gonna read -12 bytes, dumbass
     guard count > 0 else {
       return .failure (
-        .error( .trace ( self, tag: "read count must be > 0" ) )
+        .error ( .trace ( self, tag: "read count must be > 0" ) )
       )
     }
     
     var buffer  = [UInt8](repeating: 0, count: count)
     var timeout = timeout
-    var clock   = TimeoutClock()
+    var clock   = TimeoutClock()  // start the clock!
     
     while true {
-      //let remaining = PosixPolling.Timeout(milliseconds: milliseconds)
-      if let error = check ( poll.timeout(timeout, for: .read) ) { return .failure(error) }
       
+      // poll. if we get an error, we bail out right away
+      if let error = check ( poll.timeout ( timeout, for: .read ) ) { return .failure(error) }
+      
+      // try to read some bytes
       let bytes_read = buffer.withUnsafeMutableBytes { buffer in
         posix_read ( descriptor, buffer.baseAddress, count )
       }
       
+      // did we get some?
       if bytes_read >= 0 {
-        return bytes_read > 0 ? .success ( Data ( bytes: buffer, count: bytes_read ) )
-                              : .failure ( .closed )
+        return bytes_read > 0 ? .success ( Data ( bytes: buffer, count: bytes_read ) ) // yay!
+                              : .failure ( .closed )                                   // bummer!
       }
       
+      // are we in error (we are, because bytes_read < 0)
       if errno != 0 {
+        // if it's EINTR, we're going round again, but we need to decrement our
+        // timeout as we have used some of it
         if errno == EINTR {
-          timeout = timeout.decrement(elapsed: clock.elapsed() )
-//          milliseconds = Int32 ( max ( Int(milliseconds) - time.elapsed(since: mark), 0) )
-//          mark = time.now()
+          timeout = timeout.decrement ( elapsed: clock.elapsed() )
           errno = 0
           continue
         }
-        else { return  .failure( .error(.posix(self, tag: "serial read")) ) }
+        else { return  .failure( .error( .posix(self, tag: "serial read")) ) } // all is lost
       }
       
       
@@ -230,8 +83,6 @@ public struct SyncIO {
   
   public func read ( timeout: PosixPolling.Timeout = .indefinite, maxbuffer: Int = 1024 ) -> Result<Data, SyncIO.Error> {
     
-    
-    //var milliseconds = timeout.milliseconds
     var collected    = [UInt8]()
     var should_wait  = true
     var buffer       = [UInt8](repeating: 0, count: maxbuffer)
@@ -240,9 +91,10 @@ public struct SyncIO {
     
     
     while true {
-      // we should wait if : 1) this is the first go around. 2) we encounter EINTR during read
+      // we should wait if : 1) this is the first go around.
+      //                     2) we encounter EINTR during read before we have read any bytes
       if should_wait {
-        //let remaining = PosixPolling.Timeout(milliseconds: milliseconds)
+        // poll, check error and bail if we get one
         if let error = check ( poll.timeout(timeout, for: .read) ) { return .failure(error) }
       }
       // otherwise we should poll the descriptor with no timeout
@@ -271,9 +123,9 @@ public struct SyncIO {
         else { return .failure(.error(.posix(self, tag: "serial read"))) }
       }
       
-      if bytes_read == 0 { return .failure(.closed) }
+      if bytes_read == 0 { return .failure(.closed) }            // rude!
       else {
-        collected.append(contentsOf: buffer[0..<bytes_read])
+        collected.append(contentsOf: buffer[0..<bytes_read])     // collect some bytes
         should_wait = false
         continue
       }
@@ -291,19 +143,23 @@ public struct SyncIO {
     var clock     = TimeoutClock()
 
     while true {
+      // poll, check error and bail if we get one
       if let error = check ( poll.timeout(timeout, for: .read) ) { return .failure(error) }
       
+      // decrement the timeout so we don't just keep reapplying it to the poll.
       timeout = timeout.decrement ( elapsed: clock.elapsed() )
-      //if timeout == .zero { return .failure (.timeout) }
       
+      // try and read some bytes
       var byte : UInt8 = 0
       let bytes_read = withUnsafeMutablePointer(to: &byte) {
         posix_read ( descriptor, $0, 1 )
       }
 
+      // if we got some, happy path
       if bytes_read > 0 {
         collected.append ( byte )
-
+        
+        // are these the driods we're looking for?
         if byte == delimiter {
           if !includeDelimiter { collected.removeLast() }
           return .success ( Data ( collected ) )
@@ -312,9 +168,12 @@ public struct SyncIO {
         continue
       }
 
-      if bytes_read == 0 { return .failure ( .closed ) }
+      if bytes_read == 0 { return .failure ( .closed ) }  // rude!
 
+      // we are in error
       if errno != 0 {
+        // but it's EINTR so #yolo, let's go again but burn some timeout
+        // Not sure we actually need to do this as we decrement every time through the poll
         if errno == EINTR {
           timeout = timeout.decrement ( elapsed: clock.elapsed() )
           errno = 0
@@ -329,10 +188,14 @@ public struct SyncIO {
   
   public func write ( _ data: Data, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Int, SyncIO.Error> {
 
-    if data.isEmpty { return .success ( 0 ) } //TODO: this is an error, not a success
-
+    guard data.count > 0 else {
+      return .failure (
+        .error ( .trace (self, tag: "data.count muxt be > 0" ) )
+      )
+    }
+    
     return data.withUnsafeBytes { buffer -> Result<Int, SyncIO.Error> in
-      guard let base = buffer.baseAddress else { return .success ( 0 ) }
+      guard let base = buffer.baseAddress else { return .success ( 0 ) }// TODO: WTF?
 
       var total_written = 0
       var timeout       = timeout
@@ -344,7 +207,7 @@ public struct SyncIO {
         if let error = check ( poll.timeout ( timeout, for: .write ) ) { return .failure ( error ) }
         
         timeout = timeout.decrement ( elapsed: clock.elapsed() )
-        //if timeout == .zero { return .failure(.timeout) }
+
         
         let wrote = posix_write ( descriptor, base.advanced ( by: total_written ), length - total_written )
 
@@ -389,10 +252,7 @@ public struct SyncIO {
 }
 
 
-public extension SerialPort {
 
-  var syncIO : SyncIO { SyncIO ( descriptor: descriptor ) }
-}
 
 
 
