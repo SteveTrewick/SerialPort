@@ -7,65 +7,9 @@ import Trace
 
 /// Provides polling helpers for POSIX file descriptors on platforms without `ppoll`.
 public struct PosixPolling {
-  
-  
+
+
   let descriptor : Int32
-
-  
-  /// Represents a poll timeout in milliseconds, including convenience constructors.
-  public struct Timeout : Equatable {
-    
-    let milliseconds : Int32 // we roll in millis, not seconds like some caveman. wall time is for fleshys.
-
-    
-    /// Reduces the timeout by the elapsed duration while respecting indefinite waits.
-    ///
-    /// - Parameter elapsed: The number of milliseconds that have already passed.
-    /// - Returns:  A new timeout value adjusted for the elapsed time.
-    ///
-    /// if we indefinite, do nothing, we burn eternal
-    /// otherwise, subtract some millis but don't go below 0
-    
-    func decrement ( elapsed: Int ) -> Timeout {
-      self == .indefinite ? .indefinite
-                          : Timeout (milliseconds: Int32 ( max ( Int(milliseconds) - elapsed, 0 ) ))
-    }
-    
-    
-    // MARK: Convenience constructors
-    
-    public static var  zero       : Timeout = Timeout ( milliseconds:  0 )
-    public static var  indefinite : Timeout = Timeout ( milliseconds: -1 ) // wait 4eva
-    
-    
-    /// Creates a timeout that waits for the specified number of milliseconds.
-    ///
-    /// - Parameter millis: The number of milliseconds to wait before giving up.
-    /// - Returns: A timeout representing the requested delay.
-    
-    public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
-
-    
-    
-    /// Creates a timeout from a `TimeInterval`, rounding up to the nearest millisecond.
-    ///
-    /// - Parameter interval: The interval, in seconds, to convert to a timeout.
-    /// - Returns: A timeout that waits approximately the specified number of seconds.
-    ///
-    /// I actually don't like this because you can multiply x 1000 in your head,
-    /// but codex has added it as a last act of defiance. Anyway, have some seconds.
-    
-    public static func seconds ( _ interval: TimeInterval ) -> Timeout {
-
-      if interval.isInfinite { return .indefinite }
-      if interval <= 0       { return .zero }
-
-      let milliseconds = Int ( ( interval * 1000 ).rounded (.up) )
-      let clamped      = min ( Int ( Int32.max ), milliseconds )
-
-      return .wait ( Int32 ( clamped ) )
-    }
-  }
   
   
 
