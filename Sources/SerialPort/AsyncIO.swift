@@ -9,7 +9,7 @@ import Trace
 // am not at all sure that I like it
 
 
-//  SerialBufferedReader is a high level helper that sits in front of the low level
+//  AsyncIO is a high level helper that sits in front of the low level
 //  PosixInputStream provided by SerialPort.  The reader accepts requests to deliver
 //  bytes in three different shapes: by requesting a fixed number of bytes, by
 //  reading until a delimiter, or by draining the entire buffer.  Incoming bytes
@@ -29,9 +29,15 @@ import Trace
 //  Extensive comments have been added throughout this file describing how each
 //  piece participates in that flow, how the queues interact, and how errors and
 //  timeouts are enforced.
-public final class SerialBufferedReader {
+public final class AsyncIO {
 
   public enum ReadError: Error {
+    case timeout
+    case stream(Trace)
+    case closed
+  }
+
+  public enum WriteError: Error {
     case timeout
     case stream(Trace)
     case closed
@@ -65,6 +71,7 @@ public final class SerialBufferedReader {
   //  Once a terminal error is recorded no further reads succeed.  The error is
   //  captured so that late callers immediately receive the failure.
   private var terminalError: ReadError? = nil
+  private var pendingWrites = [UUID: PendingWrite]()
 
   public convenience init(serialPort: SerialPort, callbackQueue: DispatchQueue? = nil) {
     let existingHandler = serialPort.stream.handler
@@ -83,7 +90,7 @@ public final class SerialBufferedReader {
     //  bufferQueue is the synchronization hub.  Everything that mutates shared
     //  state runs on this queue so that request/response ordering matches the
     //  order in which operations were scheduled.
-    self.bufferQueue  = DispatchQueue(label: "SerialBufferedReader.buffer")
+    self.bufferQueue  = DispatchQueue(label: "AsyncIO.buffer")
     self.forwardingHandler = forwardingHandler
 
     installHandler()
@@ -222,10 +229,64 @@ public final class SerialBufferedReader {
       self.satisfyPendingRequests()
     }
   }
-  
-  
-  
-  
+
+
+
+  public func write ( _ data: Data,
+                      timeout: Timeout = .indefinite,
+                      completion: @escaping (Result<Int, WriteError>) -> Void ) {
+
+    bufferQueue.async {
+
+      if let error = self.terminalError {
+        self.callbackQueue.async {
+          completion(.failure(self.mapReadErrorToWriteError(error)))
+        }
+        return
+      }
+
+      let write = PendingWrite(completion: completion)
+      self.pendingWrites[write.id] = write
+
+      if timeout != .indefinite {
+        self.scheduleWriteTimeout(for: write, timeout: timeout)
+      }
+
+      self.serial.send(data: data) { [weak self] result in
+
+        guard let self = self else { return }
+
+        self.bufferQueue.async {
+
+          guard let pending = self.pendingWrites.removeValue(forKey: write.id) else { return }
+
+          pending.timer?.cancel()
+          pending.timer = nil
+
+          let mapped: Result<Int, WriteError>
+
+          switch result {
+            case .success(let count):
+              if let error = self.terminalError {
+                mapped = .failure(self.mapReadErrorToWriteError(error))
+              }
+              else {
+                mapped = .success(count)
+              }
+
+            case .failure(let trace):
+              mapped = .failure(.stream(trace))
+          }
+
+          self.dispatch(write: pending, result: mapped)
+        }
+      }
+    }
+  }
+
+
+
+
   //MARK: Implmentation
   
   private func installHandler() {
@@ -277,7 +338,9 @@ public final class SerialBufferedReader {
     //  Transitioning into a terminal state drains every pending request so
     //  callers are notified promptly that no additional data will be delivered.
     let requests = drainPendingRequests()
+    let writes = drainPendingWrites()
     dispatch(requests: requests, with: .failure(.stream(trace)))
+    dispatch(writes: writes, with: .failure(.stream(trace)))
   }
 
   private func teardown(for error: ReadError) {
@@ -292,8 +355,10 @@ public final class SerialBufferedReader {
       //  fail them with the provided error, and restore the original stream
       //  handler so ownership of the SerialPort returns to the caller.
       let requests = self.drainPendingRequests()
+      let writes = self.drainPendingWrites()
 
       self.dispatch(requests: requests, with: .failure(error))
+      self.dispatch(writes: writes, with: .failure(self.mapReadErrorToWriteError(error)))
       self.stream.handler = self.forwardingHandler
     }
   }
@@ -331,6 +396,24 @@ public final class SerialBufferedReader {
     request.timer = timer
   }
 
+  private func scheduleWriteTimeout(for write: PendingWrite, timeout: Timeout) {
+
+    let timer = DispatchSource.makeTimerSource(queue: bufferQueue)
+    let milliseconds = max(0, Int(timeout.milliseconds))
+    let deadline = milliseconds == 0 ? DispatchTime.now()
+                                     : DispatchTime.now() + .milliseconds(milliseconds)
+
+    let writeID = write.id
+
+    timer.schedule(deadline: deadline)
+    timer.setEventHandler { [weak self] in
+      self?.handleWriteTimeout(for: writeID)
+    }
+    timer.resume()
+
+    write.timer = timer
+  }
+
   private func handleTimeout(for id: UUID) {
 
     guard let request = removeRequest(with: id) else { return }
@@ -339,6 +422,16 @@ public final class SerialBufferedReader {
     //  from the queue and its completion handler is executed on callbackQueue.
     dispatch(request: request, result: .failure(.timeout))
     satisfyPendingRequests()
+  }
+
+  private func handleWriteTimeout(for id: UUID) {
+
+    guard let write = pendingWrites.removeValue(forKey: id) else { return }
+
+    write.timer?.cancel()
+    write.timer = nil
+
+    dispatch(write: write, result: .failure(.timeout))
   }
 
   private func satisfyPendingRequests() {
@@ -435,6 +528,20 @@ public final class SerialBufferedReader {
     return requests
   }
 
+  private func drainPendingWrites() -> [PendingWrite] {
+
+    let writes = Array(pendingWrites.values)
+
+    pendingWrites.removeAll(keepingCapacity: false)
+
+    for write in writes {
+      write.timer?.cancel()
+      write.timer = nil
+    }
+
+    return writes
+  }
+
   private func dispatch(request: PendingRequest, result: Result<Data, ReadError>) {
     //  Completions are dispatched asynchronously to avoid re-entrancy on
     //  bufferQueue and to respect the caller's desired execution context.
@@ -453,6 +560,32 @@ public final class SerialBufferedReader {
       for request in requests {
         request.completion(result)
       }
+    }
+  }
+
+  private func dispatch(write: PendingWrite, result: Result<Int, WriteError>) {
+
+    callbackQueue.async {
+      write.completion(result)
+    }
+  }
+
+  private func dispatch(writes: [PendingWrite], with result: Result<Int, WriteError>) {
+
+    guard writes.isEmpty == false else { return }
+
+    callbackQueue.async {
+      for write in writes {
+        write.completion(result)
+      }
+    }
+  }
+
+  private func mapReadErrorToWriteError(_ error: ReadError) -> WriteError {
+    switch error {
+      case .timeout: return .timeout
+      case .stream(let trace): return .stream(trace)
+      case .closed: return .closed
     }
   }
 }

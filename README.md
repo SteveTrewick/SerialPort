@@ -306,14 +306,15 @@ shows up in time) and report `.failure(.closed)` if the descriptor reaches EOF.
 wired up to the `stream.handler` or you're gonna have a bad time.
 
 
-## Buffered Async Reading
+## Async I/O helper
 
 Oh, you didn't like that _either_, OK, well.
 
-If you prefer to read from the port without wiring up your own stream handler, wrap
-the stream with a buffered reader:
+If you prefer to work with a higher-level helper, ask the port for an `AsyncIO`
+instance. It wraps the underlying stream, buffers incoming bytes, and surfaces
+both asynchronous reads and writes on the queues of your choice:
 
-There's also a convenience `reader.read(timeout:completion:)` with no count or
+There's also a convenience `io.read(timeout:completion:)` with no count or
 delimiter arguments. It drains everything currently buffered as soon as you call
 it, handing the accumulated bytes to the completion handler in one go. You can
 still supply a timeout if you want to wait for additional bytes, and you'll get
@@ -321,10 +322,10 @@ still supply a timeout if you want to wait for additional bytes, and you'll get
 
 ```swift
 let port: SerialPort = // ...
-let reader = port.bufferedReader()
+let io = port.asyncIO()
 
 // read an exact number of bytes
-reader.read(count: 8) { result in
+io.read(count: 8) { result in
   switch result {
     case .success(let bytes): print("received", bytes)
     case .failure(let error): print("read failed", error)
@@ -332,17 +333,27 @@ reader.read(count: 8) { result in
 }
 
 // read until a newline (and include it in the returned Data)
-reader.read(until: 0x0A, includeDelimiter: true) { result in
+io.read(until: 0x0A, includeDelimiter: true) { result in
   // handle the same way as above
 }
 
 // drain whatever is currently buffered (and optionally wait for more)
-reader.read { result in
+io.read { result in
   switch result {
     case .success(let bytes):
       print("flushed", bytes)
     case .failure(let error):
       print("read failed", error)
+  }
+}
+
+// kick off an asynchronous write and learn how many bytes went out
+io.write(Data("hello world".utf8)) { result in
+  switch result {
+    case .success(let sent):
+      print("wrote", sent, "bytes")
+    case .failure(let error):
+      print("write failed", error)
   }
 }
 ```
@@ -351,16 +362,22 @@ All of these APIs accept an optional `SerialPort.Timeout` value. If you provide
 one, the completion handler receives `.failure(.timeout)` when the deadline
 passes without satisfying the request. When a timeout is omitted the read waits
 until enough bytes arrive, or in the case of the no-argument read, immediately
-drains and returns everything currently buffered.
+drains and returns everything currently buffered. The write API follows the same
+rules, calling back with `.failure(.timeout)` if the write does not finish before
+the deadline.
 
 You can construct timeout values using the helpers on `Timeout`, such as
 `.seconds(_):`
 
 ```swift
 let port: SerialPort = // ...
-let reader = port.bufferedReader()
+let io = port.asyncIO()
 
-reader.read(timeout: SerialPort.Timeout.seconds(0.5)) { result in
+io.read(timeout: SerialPort.Timeout.seconds(0.5)) { result in
+  // handle timeout or success
+}
+
+io.write(Data([0x7F]), timeout: SerialPort.Timeout.seconds(0.5)) { result in
   // handle timeout or success
 }
 ```

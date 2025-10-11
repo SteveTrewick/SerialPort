@@ -9,19 +9,19 @@ import Glibc
 import Darwin
 #endif
 
-private var retainedReaders = [SerialBufferedReader]()
+private var retainedIO = [AsyncIO]()
 
-private func retainReader(_ reader: SerialBufferedReader) {
-    retainedReaders.append(reader)
+private func retainIO(_ io: AsyncIO) {
+    retainedIO.append(io)
 }
 
-final class SerialBufferedReaderTests: XCTestCase {
+final class AsyncIOTests: XCTestCase {
 
     func testReadCountWaitsForExactBytes() throws {
         let context = try PipeContext()
-        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
-        retainReader(reader)
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
+        let reader = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(reader)
 
         defer {
             context.stopForwarding()
@@ -53,9 +53,9 @@ final class SerialBufferedReaderTests: XCTestCase {
 
     func testReadAvailableReturnsBufferedData() throws {
         let context = try PipeContext()
-        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
-        retainReader(reader)
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
+        let reader = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(reader)
 
         defer {
             context.stopForwarding()
@@ -87,9 +87,9 @@ final class SerialBufferedReaderTests: XCTestCase {
 
     func testReadAvailableReturnsEmptyDataWhenBufferEmpty() throws {
         let context = try PipeContext()
-        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
-        retainReader(reader)
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
+        let reader = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(reader)
 
         defer {
             context.stopForwarding()
@@ -118,9 +118,9 @@ final class SerialBufferedReaderTests: XCTestCase {
 
     func testReadUntilDelimiterReturnsAvailableData() throws {
         let context = try PipeContext()
-        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
-        retainReader(reader)
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
+        let reader = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(reader)
 
         defer {
             context.stopForwarding()
@@ -161,9 +161,9 @@ final class SerialBufferedReaderTests: XCTestCase {
 
     func testReadAvailableCooperatesWithPendingRequests() throws {
         let context = try PipeContext()
-        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
-        retainReader(reader)
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
+        let reader = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(reader)
 
         defer {
             context.stopForwarding()
@@ -235,9 +235,9 @@ final class SerialBufferedReaderTests: XCTestCase {
 
     func testReadUntilDelimiterTimesOutWithoutDelimiter() throws {
         let context = try PipeContext()
-        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
-        retainReader(reader)
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
+        let reader = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(reader)
 
         defer {
             context.stopForwarding()
@@ -281,9 +281,9 @@ final class SerialBufferedReaderTests: XCTestCase {
 
     func testReadUntilDelimiterSpanningMultipleWritesIncludesDelimiter() throws {
         let context = try PipeContext()
-        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
-        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
-        retainReader(reader)
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
+        let reader = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(reader)
 
         defer {
             context.stopForwarding()
@@ -323,12 +323,12 @@ final class SerialBufferedReaderTests: XCTestCase {
         wait(for: [lineExpectation, remainderExpectation], timeout: 2.0)
     }
 
-    func testBufferedReaderForwardsToExistingHandler() throws {
+    func testAsyncIOForwardsToExistingHandler() throws {
         let context = try PipeContext()
-        let callbackQueue = DispatchQueue(label: "SerialBufferedReaderTests.callback")
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
 
         let handlerExpectation = expectation(description: "existing handler receives data")
-        let readerExpectation = expectation(description: "buffered reader receives data")
+        let readerExpectation = expectation(description: "async io receives data")
 
         var forwarded = Data()
         context.serial.stream.handler = { result in
@@ -344,8 +344,8 @@ final class SerialBufferedReaderTests: XCTestCase {
             }
         }
 
-        let reader = context.serial.bufferedReader(callbackQueue: callbackQueue)
-        retainReader(reader)
+        let reader = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(reader)
 
         defer {
             context.stopForwarding()
@@ -374,8 +374,118 @@ final class SerialBufferedReaderTests: XCTestCase {
         wait(for: [handlerExpectation, readerExpectation], timeout: 2.0)
     }
 
+    func testWriteSendsDataToPeer() throws {
+        let context = try PipeContext()
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
+        let io = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(io)
+
+        defer {
+            context.stopForwarding()
+            io.invalidate()
+            callbackQueue.sync { }
+            usleep(50_000)
+            context.closeDescriptors()
+        }
+
+        context.startForwarding()
+
+        let completionExpectation = expectation(description: "write completes")
+        let peerExpectation = expectation(description: "peer receives data")
+
+        DispatchQueue.global().async {
+            let data = context.readFromSerial(byteCount: 6)
+            XCTAssertEqual(String(data: data, encoding: .utf8), "abcdef")
+            peerExpectation.fulfill()
+        }
+
+        io.write(Data("abcdef".utf8)) { result in
+            switch result {
+            case .success(let count):
+                XCTAssertEqual(count, 6)
+            case .failure(let error):
+                XCTFail("Unexpected error: \(error)")
+            }
+            completionExpectation.fulfill()
+        }
+
+        wait(for: [completionExpectation, peerExpectation], timeout: 2.0)
+    }
+
+    func testWriteReportsStreamError() throws {
+        let context = try PipeContext()
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
+        let io = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(io)
+
+        defer {
+            context.stopForwarding()
+            io.invalidate()
+            callbackQueue.sync { }
+            usleep(50_000)
+            context.closeDescriptors()
+        }
+
+        context.startForwarding()
+        context.serial.close()
+
+        let expectation = expectation(description: "write fails with stream error")
+
+        io.write(Data("oops".utf8)) { result in
+            switch result {
+            case .success:
+                XCTFail("Expected failure")
+            case .failure(let error):
+                if case .stream = error {
+                    // expected
+                } else {
+                    XCTFail("Expected stream error, got \(error)")
+                }
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 2.0)
+    }
+
+    func testWriteReportsClosedAfterInvalidate() throws {
+        let context = try PipeContext()
+        let callbackQueue = DispatchQueue(label: "AsyncIOTests.callback")
+        let io = context.serial.asyncIO(callbackQueue: callbackQueue)
+        retainIO(io)
+
+        defer {
+            context.stopForwarding()
+            io.invalidate()
+            callbackQueue.sync { }
+            usleep(50_000)
+            context.closeDescriptors()
+        }
+
+        context.startForwarding()
+        io.invalidate()
+
+        let expectation = expectation(description: "write fails with closed error")
+
+        io.write(Data("noop".utf8)) { result in
+            switch result {
+            case .success:
+                XCTFail("Expected failure")
+            case .failure(let error):
+                if case .closed = error {
+                    // expected
+                } else {
+                    XCTFail("Expected closed, got \(error)")
+                }
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 2.0)
+    }
+
     private func readRemainingBytes(_ count: Int,
-                                    using reader: SerialBufferedReader,
+                                    using reader: AsyncIO,
                                     expectation: XCTestExpectation,
                                     validation: @escaping (Data) -> Void) {
         reader.read(count: count) { result in
@@ -394,12 +504,19 @@ final class SerialBufferedReaderTests: XCTestCase {
         let writer: FileHandle
 
         private let readDescriptor: Int32
-        private let forwardQueue = DispatchQueue(label: "SerialBufferedReaderTests.forwarder")
+        private let writeDescriptor: Int32
+        private let forwardQueue = DispatchQueue(label: "AsyncIOTests.forwarder")
         private var readSource: DispatchSourceRead?
 
         init() throws {
             var descriptors = [Int32](repeating: 0, count: 2)
-            guard pipe(&descriptors) == 0 else {
+            #if os(Linux)
+            let socketType = Int32(SOCK_STREAM.rawValue)
+            #else
+            let socketType = SOCK_STREAM
+            #endif
+
+            guard socketpair(AF_UNIX, socketType, 0, &descriptors) == 0 else {
                 let error = errno
                 throw PipeError.creationFailed(error)
             }
@@ -407,6 +524,7 @@ final class SerialBufferedReaderTests: XCTestCase {
             self.serial = SerialPort(descriptor: descriptors[0])
             self.writer = FileHandle(fileDescriptor: descriptors[1], closeOnDealloc: true)
             self.readDescriptor = descriptors[0]
+            self.writeDescriptor = descriptors[1]
         }
 
         func startForwarding() {
@@ -473,6 +591,28 @@ final class SerialBufferedReaderTests: XCTestCase {
             DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
                 self.writer.write(data)
             }
+        }
+
+        func readFromSerial(byteCount: Int) -> Data {
+            var collected = Data()
+
+            while collected.count < byteCount {
+                let remaining = byteCount - collected.count
+                var buffer = [UInt8](repeating: 0, count: remaining)
+
+                let bytesRead = buffer.withUnsafeMutableBytes { pointer -> Int in
+                    guard let baseAddress = pointer.baseAddress else { return 0 }
+                    return read(self.writeDescriptor, baseAddress, remaining)
+                }
+
+                if bytesRead <= 0 {
+                    break
+                }
+
+                collected.append(contentsOf: buffer.prefix(bytesRead))
+            }
+
+            return collected
         }
 
         func closeDescriptors() {
