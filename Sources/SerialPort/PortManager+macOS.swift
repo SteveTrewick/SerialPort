@@ -9,8 +9,7 @@ extension PortManager {
   /*
     OK, strap in.
       1) We use IOKit to enumerate serial ports, this will not work on linux.
-         If you need linux compat, either use one of the many (two?) other swift
-         packages or feel free to add it.
+         but now there is a compat layer which might, anyway.
 
       2) There will be those who say "but Steve [it me!], IOKit won't work with
          muh virtual TTY cuz only muh /dev/cu*. This is not true, as we will see,
