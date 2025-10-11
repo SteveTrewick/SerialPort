@@ -18,7 +18,7 @@ extension PortManager {
 
       3) Seriously though, if your use case is linux or virtual TTYs you probably
          want to find a better, more mature, less idiosyncratic (sp?) package
-         rather than I hacked up to cock about with for fun on Friday nights while
+         rather than one I hacked up to cock about with for fun on a Friday night while
          I'm drunk.
 
       4) Anyhooo ...
