@@ -37,6 +37,7 @@ public struct SyncIO {
   public enum Error: Swift.Error {
      case timeout
      case closed
+     case fault(Trace)
      case error(Trace)
   }
   
@@ -84,7 +85,11 @@ public struct SyncIO {
       
       // try to read some bytes
       let bytes_read = buffer.withUnsafeMutableBytes { buffer in
-        posix_read ( descriptor, buffer.baseAddress, count )
+        guard let base = buffer.baseAddress else {
+          errno = EFAULT
+          return -1
+        }
+        return posix_read ( descriptor, base, count )
       }
       
       // did we get some?
@@ -98,6 +103,10 @@ public struct SyncIO {
         
         // if it's EINTR & co, we're going round again, but we need to decrement our
         // timeout as we have used some of it
+        if errno == EFAULT {
+          return .failure ( .fault ( .trace ( self, tag: "sync read buffer fault" ) ) )
+        }
+
         if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK {
           timeout = timeout.decrement ( elapsed: clock.elapsed() )
           errno = 0
@@ -127,6 +136,12 @@ public struct SyncIO {
   
   public func read ( timeout: PosixPolling.Timeout = .indefinite, maxbuffer: Int = 1024 ) -> Result<Data, SyncIO.Error> {
     
+    guard maxbuffer > 0 else {
+      return .failure (
+        .error ( .trace ( self, tag: "maxbuffer must be > 0" ) )
+      )
+    }
+
     var collected    = [UInt8]()
     var should_wait  = true
     var buffer       = [UInt8](repeating: 0, count: maxbuffer)
@@ -154,7 +169,11 @@ public struct SyncIO {
       // attempt a read
       let capacity = buffer.count // we need to pull this out because we can't refer to buffer inside the unsafe
       let bytes_read = buffer.withUnsafeMutableBytes { buffer in
-        posix_read(descriptor, buffer.baseAddress, capacity)
+        guard let base = buffer.baseAddress else {
+          errno = EFAULT
+          return -1
+        }
+        return posix_read(descriptor, base, capacity)
       }
       
       // error.
@@ -162,6 +181,10 @@ public struct SyncIO {
 
         // if its one of these, we burn some time and go again, repolling if we
         // haven't started collecting chars yet.
+        if errno == EFAULT {
+          return .failure ( .fault ( .trace ( self, tag: "streaming read buffer fault" ) ) )
+        }
+
         if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK {
           timeout     = timeout.decrement(elapsed: clock.elapsed() )
           should_wait = collected.isEmpty
@@ -235,6 +258,10 @@ public struct SyncIO {
       if errno != 0 {
         
         // but it's EINTR or its chums so #yolo, let's go again but burn some timeout
+        if errno == EFAULT {
+          return .failure ( .fault ( .trace ( self, tag: "sync read byte buffer fault" ) ) )
+        }
+
         if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK {
           timeout = timeout.decrement ( elapsed: clock.elapsed() )
           errno = 0
@@ -304,6 +331,10 @@ public struct SyncIO {
       if errno != 0 {
         
         // if its one of these lads, we go around again
+        if errno == EFAULT {
+          return .failure ( .fault ( .trace ( self, tag: "sync write buffer fault" ) ) )
+        }
+
         if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK {
           timeout = timeout.decrement ( elapsed: clock.elapsed() )
           errno = 0
