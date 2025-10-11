@@ -196,4 +196,19 @@ final class SerialPortSyncReadTests: XCTestCase {
             }
         }
     }
+
+    func testCheckTranslatesClosedOutcome() throws {
+        let context = try SerialBufferedReaderTests.PipeContext()
+        defer { context.closeDescriptors() }
+
+        let syncIO = context.serial.syncIO
+        let translated = syncIO.check(.closed)
+
+        switch translated {
+        case .some(.closed):
+            break
+        default:
+            XCTFail("Expected closed error, got \(String(describing: translated))")
+        }
+    }
 }

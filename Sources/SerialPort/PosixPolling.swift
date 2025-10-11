@@ -62,6 +62,7 @@ public struct PosixPolling {
   public enum PollOutcome {
     case ready
     case timeout
+    case closed
     case error(Trace)
   }
   
@@ -69,6 +70,7 @@ public struct PosixPolling {
   public enum ImmediatePollOutcome {
     case ready
     case idle
+    case closed
     case error(Trace)
   }
   
@@ -85,6 +87,7 @@ public struct PosixPolling {
     switch poll_descriptor ( descriptor, for: event, timeout: .zero ) {
       case .ready             : return .ready
       case .timeout           : return .idle
+      case .closed            : return .closed
       case .error (let trace) : return .error(trace)
     }
   }
@@ -109,17 +112,20 @@ public struct PosixPolling {
       
       // error reported, but ...
       if status < 0 {
-        if errno == EINTR {
+        if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK {
           timeout = timeout.decrement ( elapsed: clock.elapsed() ) // so we can't loop forever
           errno   = 0                                              // clear the error
           continue
         }
-        else
-        {
-          return .error ( .posix ( self, tag: event.tag ) )
+
+        if errno == EBADF || errno == EPIPE {
+          errno = 0
+          return .closed
         }
+
+        return .error ( .posix ( self, tag: event.tag ) )
       }
-      
+
       return status > 0 ? .ready : .timeout
     }
   }

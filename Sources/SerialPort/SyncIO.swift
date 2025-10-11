@@ -111,6 +111,7 @@ public struct SyncIO {
         switch poll.immediate ( for: .read ) {
           case .ready               : break                               // descriptor is ready, try and read some bytes, see below
           case .idle                : return .success ( Data(collected) ) // descriptor is idle, we have finished
+          case .closed              : return .failure ( .closed        ) // descriptor is closed
           case .error ( let trace ) : return .failure ( .error(trace)   ) // we have failed
         }
       }
@@ -277,6 +278,7 @@ public struct SyncIO {
     switch outcome {
       case .ready               : return nil
       case .timeout             : return .timeout
+      case .closed              : return .closed
       case .error ( let trace ) : return .error ( trace )
     }
   }
