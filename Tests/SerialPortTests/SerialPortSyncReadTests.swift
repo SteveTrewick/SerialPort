@@ -10,7 +10,7 @@ final class SerialPortSyncReadTests: XCTestCase {
 
         context.asyncWrite("hello")
 
-        let result = context.serial.read(count: 5, timeout: 1)
+        let result = context.serial.syncIO.read(count: 5, timeout: .seconds(1))
 
         switch result {
         case .success(let data):
@@ -24,7 +24,7 @@ final class SerialPortSyncReadTests: XCTestCase {
         let context = try SerialBufferedReaderTests.PipeContext()
         defer { context.closeDescriptors() }
 
-        let result = context.serial.read(count: 1, timeout: 0.1)
+        let result = context.serial.syncIO.read(count: 1, timeout: .seconds(0.1))
 
         switch result {
         case .success:
@@ -44,7 +44,7 @@ final class SerialPortSyncReadTests: XCTestCase {
 
         context.writer.closeFile()
 
-        let result = context.serial.read(count: 1, timeout: 1)
+        let result = context.serial.syncIO.read(count: 1, timeout: .seconds(1))
 
         switch result {
         case .success:
@@ -64,7 +64,7 @@ final class SerialPortSyncReadTests: XCTestCase {
 
         context.asyncWrite("drain")
 
-        let result = context.serial.read(timeout: 1)
+        let result = context.serial.syncIO.read(timeout: .seconds(1))
 
         switch result {
         case .success(let data):
@@ -78,7 +78,7 @@ final class SerialPortSyncReadTests: XCTestCase {
         let context = try SerialBufferedReaderTests.PipeContext()
         defer { context.closeDescriptors() }
 
-        let result = context.serial.read(timeout: 0)
+        let result = context.serial.syncIO.read(timeout: .zero)
 
         switch result {
         case .success:
@@ -99,13 +99,13 @@ final class SerialPortSyncReadTests: XCTestCase {
         context.asyncWrite("hello\nworld")
 
         let newline: UInt8 = 0x0A
-        let result = context.serial.read(until: newline, includeDelimiter: false, timeout: 1)
+        let result = context.serial.syncIO.read(until: newline, includeDelimiter: false, timeout: .seconds(1))
 
         switch result {
         case .success(let data):
             XCTAssertEqual(String(data: data, encoding: .utf8), "hello")
 
-            let remainder = context.serial.read(timeout: 0.1)
+            let remainder = context.serial.syncIO.read(timeout: .seconds(0.1))
 
             switch remainder {
             case .success(let tail):
@@ -125,7 +125,7 @@ final class SerialPortSyncReadTests: XCTestCase {
         context.asyncWrite("foo\n")
 
         let newline: UInt8 = 0x0A
-        let result = context.serial.read(until: newline, includeDelimiter: true, timeout: 1)
+        let result = context.serial.syncIO.read(until: newline, includeDelimiter: true, timeout: .seconds(1))
 
         switch result {
         case .success(let data):
@@ -142,7 +142,7 @@ final class SerialPortSyncReadTests: XCTestCase {
         context.asyncWrite("abc")
 
         let newline: UInt8 = 0x0A
-        let result = context.serial.read(until: newline, includeDelimiter: false, timeout: 0.1)
+        let result = context.serial.syncIO.read(until: newline, includeDelimiter: false, timeout: .seconds(0.1))
 
         switch result {
         case .success:
@@ -162,7 +162,7 @@ final class SerialPortSyncReadTests: XCTestCase {
 
         context.writer.closeFile()
 
-        let result = context.serial.read(timeout: 1)
+        let result = context.serial.syncIO.read(timeout: .seconds(1))
 
         switch result {
         case .success:
@@ -183,7 +183,7 @@ final class SerialPortSyncReadTests: XCTestCase {
         context.writer.closeFile()
 
         let newline: UInt8 = 0x0A
-        let result = context.serial.read(until: newline, includeDelimiter: false, timeout: 0.1)
+        let result = context.serial.syncIO.read(until: newline, includeDelimiter: false, timeout: .seconds(0.1))
 
         switch result {
         case .success:

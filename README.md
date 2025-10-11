@@ -243,13 +243,14 @@ port.stream.cancel() {
 
 ## Synchronous I/O
 
-Oh, you _didn't_ like that? Need to block the current thread until bytes arrive? Call the synchronous APIs
-and handle the `Result<Data, SerialPort.SyncIOError>` they return:
+Oh, you _didn't_ like that? Need to block the current thread until bytes arrive? Grab a `SyncIO`
+helper and handle the `Result<Data, SyncIO.Error>` it returns:
 
 ```swift
 let port: SerialPort = // ...
+let io   = port.syncIO
 
-switch port.read(count: 16, timeout: 2) {
+switch io.read(count: 16, timeout: .seconds(2)) {
 case .success(let bytes):
   print("received", bytes)
 case .failure(.timeout):
@@ -269,21 +270,21 @@ variant to wait for the first byte and then slurp everything immediately
 available:
 
 ```swift
-let drained = port.read(timeout: 1)
+let drained = io.read(timeout: .seconds(1))
 ```
 
 Or if you're looking for a delimiter, there's a helper that keeps reading until
 it arrives, with an option to retain the delimiter in the returned data:
 
 ```swift
-let line = port.read(until: 0x0A, includeDelimiter: true, timeout: 1)
+let line = io.read(until: 0x0A, includeDelimiter: true, timeout: .seconds(1))
 ```
 
 Need to push bytes out on the calling thread? Use the synchronous write helper
-and handle the `Result<Int, SerialPort.SyncIOError>`:
+and handle the `Result<Int, SyncIO.Error>`:
 
 ```swift
-switch port.write(Data("OK".utf8), timeout: 1) {
+switch io.write(Data("OK".utf8), timeout: .seconds(1)) {
 case .success(let count):
   print("sent", count, "bytes")
 case .failure(.timeout):
