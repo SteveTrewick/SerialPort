@@ -11,19 +11,22 @@ public struct PosixPolling {
   
   let descriptor : Int32
 
-  // model the timeout behaviour, polling is either immediate or with a timeout defined in µseconds
+  
   /// Represents a poll timeout in milliseconds, including convenience constructors.
   public struct Timeout : Equatable {
-
+    // model the timeout behaviour, polling is either immediate or with a timeout defined in µseconds
+    
     let milliseconds : Int32
     
 
-    // if we indefinite, do nothing, we burn eternal
-    // otherwise, subtract some millis but don't go below 0
+    
     /// Reduces the timeout by the elapsed duration while respecting indefinite waits.
     ///
     /// - Parameter elapsed: The number of milliseconds that have already passed.
-    /// - Returns: A new timeout value adjusted for the elapsed time.
+    /// - Returns:  A new timeout value adjusted for the elapsed time.
+    ///
+    /// if we indefinite, do nothing, we burn eternal
+    /// otherwise, subtract some millis but don't go below 0
     func decrement ( elapsed: Int ) -> Timeout {
       self == .indefinite ? .indefinite
                           : Timeout (milliseconds: Int32 ( max ( Int(milliseconds) - elapsed, 0 ) ))
@@ -34,6 +37,7 @@ public struct PosixPolling {
     
     public static var  zero       : Timeout = Timeout ( milliseconds:  0 )
     public static var  indefinite : Timeout = Timeout ( milliseconds: -1 )
+    
     /// Creates a timeout that waits for the specified number of milliseconds.
     ///
     /// - Parameter millis: The number of milliseconds to wait before giving up.
@@ -41,12 +45,14 @@ public struct PosixPolling {
     public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
 
     
-    // I actually don't like this because you can multiply x 1000 in your head,
-    // but codex has added it as a last act of defiance. Anyway, have some seconds.
+    
     /// Creates a timeout from a `TimeInterval`, rounding up to the nearest millisecond.
     ///
     /// - Parameter interval: The interval, in seconds, to convert to a timeout.
     /// - Returns: A timeout that waits approximately the specified number of seconds.
+    ///
+    /// I actually don't like this because you can multiply x 1000 in your head,
+    /// but codex has added it as a last act of defiance. Anyway, have some seconds.
     public static func seconds ( _ interval: TimeInterval ) -> Timeout {
 
       if interval.isInfinite { return .indefinite }
@@ -61,7 +67,7 @@ public struct PosixPolling {
   
   
 
-  // model the flag and tag for read/write, we use the tags for descriptive errors
+  
   /// Represents a pollable event, describing the POSIX flag and a descriptive tag.
   public struct Event {
     
@@ -73,7 +79,7 @@ public struct PosixPolling {
   }
   
 
-  // Outcome from calling poll_descriptor
+  
   /// Represents the outcome when polling with a timeout.
   public enum PollOutcome {
     case ready
@@ -82,7 +88,7 @@ public struct PosixPolling {
     case error(Trace)
   }
 
-  // outcome of immediate polling
+  
   /// Represents the outcome when polling without a timeout.
   public enum ImmediatePollOutcome {
     case ready
@@ -94,7 +100,7 @@ public struct PosixPolling {
   
   // MARK: Public API
   
-  // poll with a timeout
+  
   /// Polls the descriptor for the specified event, waiting up to the provided timeout.
   ///
   /// - Parameters:
@@ -105,7 +111,7 @@ public struct PosixPolling {
     poll_descriptor ( descriptor, for: event, timeout: timeout )
   }
   
-  // poll with no timeout,
+  
   /// Polls the descriptor for the specified event without waiting.
   ///
   /// - Parameter event: The readiness event to probe immediately on the descriptor.
