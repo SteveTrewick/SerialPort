@@ -212,11 +212,11 @@ helper and handle the `Result<Data, SyncIO.Error>` it returns:
 let port: SerialPort = // ...
 let io   = port.syncIO
 
-switch io.read ( count: 16, timeout: .seconds(2) ) {
-  case .success ( let bytes         ) : print ( "received", bytes )
-  case .failure ( .timeout          ) : print ( "nothing arrived before the 2 second timeout" )
-  case .failure ( .closed           ) : print ( "the other side closed the connection" )
-  case .failure ( .trace(let trace) ) : print ( "posix error", trace )
+switch io.read (count: 16, timeout: .seconds(2)) {
+  case .success(let bytes        ): print ( "received", bytes )
+  case .failure(.timeout         ): print ( "nothing arrived before the 2 second timeout" )
+  case .failure(.closed          ): print ( "the other side closed the connection" )
+  case .failure(.trace(let trace)): print ( "posix error", trace )
 }  
 ```
 
@@ -228,25 +228,25 @@ variant to wait for the first byte and then slurp everything immediately
 available:
 
 ```swift
-let drained = io.read ( timeout: .seconds(1) )
+let drained = io.read(timeout: .seconds(1))
 ```
 
 Or if you're looking for a delimiter, there's a helper that keeps reading until
 it arrives, with an option to retain the delimiter in the returned data:
 
 ```swift
-let line = io.read ( until: 0x0A, includeDelimiter: true, timeout: .seconds(1) )
+let line = io.read(until: 0x0A, includeDelimiter: true, timeout: .seconds(1))
 ```
 
 Need to push bytes out on the calling thread? Use the synchronous write helper
 and handle the `Result<Int, SyncIO.Error>`:
 
 ```swift
-switch io.write ( Data ("OK".utf8), timeout: .seconds(1) ) {
-  case .success ( let count         ) : print ( "sent", count, "bytes" )
-  case .failure ( .timeout          ) : print ( "the descriptor never became writable" )
-  case .failure ( .closed           ) : print ( "the peer closed before the write completed" )
-  case .failure ( .trace(let trace) ) : print ( "posix error", trace )
+switch io.write(Data ("OK".utf8), timeout: .seconds(1)) {
+  case .success (let count        ): print ("sent", count, "bytes")
+  case .failure (.timeout         ): print ("the descriptor never became writable")
+  case .failure (.closed          ): print ("the peer closed before the write completed")
+  case .failure (.trace(let trace)): print ("posix error", trace)
 }
 ```
 
@@ -291,16 +291,16 @@ io.read ( until: 0x0A, includeDelimiter: true ) { result in
 // drain whatever is currently buffered (and optionally wait for more)
 io.read { result in
   switch result {
-    case .success ( let bytes ) : print("flushed", bytes)
-    case .failure ( let error ) : print("read failed", error)
+    case .success(let bytes): print("flushed", bytes)
+    case .failure(let error): print("read failed", error)
   }
 }
 
 // kick off an asynchronous write and learn how many bytes went out
-io.write ( Data ("hello world".utf8) ) { result in
+io.write(Data ("hello world".utf8)) { result in
   switch result {
-    case .success ( let sent  ) : print("wrote", sent, "bytes")
-    case .failure ( let error ) : print("write failed", error)
+    case .success(let sent ): print("wrote", sent, "bytes")
+    case .failure(let error): print("write failed", error)
   }
 }
 ```
@@ -320,11 +320,11 @@ You can construct timeout values using the helpers on `Timeout`, such as
 let port: SerialPort = // ...
 let io = port.asyncIO()
 
-io.read ( timeout: SerialPort.Timeout.seconds(0.5) ) { result in
+io.read(timeout: SerialPort.Timeout.seconds(0.5)) { result in
   // handle timeout or success
 }
 
-io.write ( Data ([0x7F]), timeout: SerialPort.Timeout.seconds(0.5) ) { result in
+io.write(Data([0x7F]), timeout: SerialPort.Timeout.seconds(0.5)) { result in
   // handle timeout or success
 }
 ```
@@ -383,8 +383,8 @@ serial.configure(config: config)
 
 serial.stream.handler = { result in
   switch result {
-    case .failure ( let trace ) : print ( trace ); exit(1)
-    case .success ( let data  ) : print ( String ( data: data, encoding: .ascii ) ?? "[failed]", terminator: "" )
+    case .failure( let trace): print(trace); exit(1)
+    case .success( let data ): print(String(data: data, encoding: .ascii) ?? "[failed]", terminator: "")
   }
 }
 
@@ -395,10 +395,10 @@ serial.stream.resume()
 // on the arduino echo program and our dispatch handler also needs some time
 
 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-  serial.send ( data: "hi there!\n".data(using: .ascii)! ) { result in
+  serial.send(data: "hi there!\n".data(using: .ascii)!) { result in
     switch result {
-      case .failure ( let trace ) : print(trace); exit(1)
-      case .success ( let count ) : print("sent \(count) bytes")
+      case .failure(let trace): print(trace); exit(1)
+      case .success(let count): print("sent \(count) bytes")
     }
   }
   
