@@ -1,6 +1,0 @@
-
-  then we nead read(n) and read_until(uint8)
- 
-  read_until is easy nuff.
- 
-  read n is gonna fuck ya.
