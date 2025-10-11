@@ -71,6 +71,15 @@ public struct SyncIO {
           errno = 0
           continue
         }
+
+        if errno == EAGAIN || errno == EWOULDBLOCK {
+          timeout = timeout.decrement ( elapsed: clock.elapsed() )
+          errno = 0
+          continue
+        }
+
+        if errno == EPIPE || errno == EBADF { return .failure ( .closed ) }
+
         else { return  .failure( .error( .posix(self, tag: "serial read")) ) } // all is lost
       }
       
@@ -120,6 +129,16 @@ public struct SyncIO {
           errno = 0
           continue
         }
+
+        if errno == EAGAIN || errno == EWOULDBLOCK {
+          timeout     = timeout.decrement(elapsed: clock.elapsed() )
+          should_wait = collected.isEmpty
+          errno = 0
+          continue
+        }
+
+        if errno == EPIPE || errno == EBADF { return .failure ( .closed ) }
+
         else { return .failure(.error(.posix(self, tag: "serial read"))) }
       }
       
@@ -179,6 +198,15 @@ public struct SyncIO {
           errno = 0
           continue
         }
+
+        if errno == EAGAIN || errno == EWOULDBLOCK {
+          timeout = timeout.decrement ( elapsed: clock.elapsed() )
+          errno = 0
+          continue
+        }
+
+        if errno == EPIPE || errno == EBADF { return .failure ( .closed ) }
+
         else { return .failure ( .error ( .posix ( self, tag: "serial read" ) ) ) }
       }
     }
