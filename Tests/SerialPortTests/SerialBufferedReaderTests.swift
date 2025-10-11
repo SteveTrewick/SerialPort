@@ -254,7 +254,7 @@ final class SerialBufferedReaderTests: XCTestCase {
 
         let newline: UInt8 = 0x0A
 
-        reader.read(until: newline, includeDelimiter: false, timeout: .milliseconds(100)) { result in
+        reader.read(until: newline, includeDelimiter: false, timeout: .wait(100)) { result in
             switch result {
             case .failure(.timeout):
                 timeoutExpectation.fulfill()

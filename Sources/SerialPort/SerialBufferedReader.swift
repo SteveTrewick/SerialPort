@@ -105,7 +105,7 @@ public final class SerialBufferedReader {
 
   
   
-  public func read ( count: Int, timeout: DispatchTimeInterval? = nil, completion: @escaping (Result<Data, ReadError>) -> Void ) {
+  public func read ( count: Int, timeout: Timeout = .indefinite, completion: @escaping (Result<Data, ReadError>) -> Void ) {
 
     //  All read requests hop onto bufferQueue so they can examine and mutate the
     //  shared buffer synchronously with other operations.
@@ -149,7 +149,7 @@ public final class SerialBufferedReader {
 
   
   
-  public func read ( until delimiter: UInt8, includeDelimiter: Bool, timeout: DispatchTimeInterval? = nil, completion: @escaping (Result<Data, ReadError>) -> Void ) {
+  public func read ( until delimiter: UInt8, includeDelimiter: Bool, timeout: Timeout = .indefinite, completion: @escaping (Result<Data, ReadError>) -> Void ) {
 
     bufferQueue.async {
 
@@ -188,7 +188,7 @@ public final class SerialBufferedReader {
 
   
   
-  public func read ( timeout: DispatchTimeInterval? = nil, completion: @escaping (Result<Data, ReadError>) -> Void ) {
+  public func read ( timeout: Timeout = .indefinite, completion: @escaping (Result<Data, ReadError>) -> Void ) {
 
     bufferQueue.async {
 
@@ -300,7 +300,7 @@ public final class SerialBufferedReader {
 
 
 
-  private func enqueue(_ request: PendingRequest, timeout: DispatchTimeInterval?) {
+  private func enqueue(_ request: PendingRequest, timeout: Timeout) {
 
     pending[request.id] = request
     order.append(request.id)
@@ -308,15 +308,17 @@ public final class SerialBufferedReader {
     //  Each request can have an optional timeout.  We use a timer source bound
     //  to bufferQueue so that the timeout fires in the same serialized context
     //  as the rest of the state machine.
-    if let timeout = timeout {
-      scheduleTimeout(for: request, interval: timeout)
+    if timeout != .indefinite {
+      scheduleTimeout(for: request, timeout: timeout)
     }
   }
 
-  private func scheduleTimeout(for request: PendingRequest, interval: DispatchTimeInterval) {
+  private func scheduleTimeout(for request: PendingRequest, timeout: Timeout) {
 
     let timer = DispatchSource.makeTimerSource(queue: bufferQueue)
-    let deadline = DispatchTime.now() + interval
+    let milliseconds = max(0, Int(timeout.milliseconds))
+    let deadline = milliseconds == 0 ? DispatchTime.now()
+                                     : DispatchTime.now() + .milliseconds(milliseconds)
 
     let requestID = request.id
 

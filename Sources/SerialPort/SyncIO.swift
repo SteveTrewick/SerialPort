@@ -65,7 +65,7 @@ public struct SyncIO {
   ///   - timeout: The maximum time to wait for the descriptor to become readable.
   /// - Returns: ``Result`` containing the data that was read, or a ``SyncIO.Error`` that describes why reading failed.
  
-  public func read ( count: Int, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Data, SyncIO.Error> {
+  public func read ( count: Int, timeout: Timeout = .indefinite ) -> Result<Data, SyncIO.Error> {
 
     // bail if we have a dumb parameter, how ya gonna read -12 bytes, dumbass
     guard count > 0 else {
@@ -134,7 +134,7 @@ public struct SyncIO {
   ///   - maxbuffer: The maximum number of bytes to read per iteration while draining the descriptor.
   /// - Returns: ``Result`` containing the accumulated data, or a ``SyncIO.Error`` if reading failed.
   
-  public func read ( timeout: PosixPolling.Timeout = .indefinite, maxbuffer: Int = 1024 ) -> Result<Data, SyncIO.Error> {
+  public func read ( timeout: Timeout = .indefinite, maxbuffer: Int = 1024 ) -> Result<Data, SyncIO.Error> {
     
     guard maxbuffer > 0 else {
       return .failure (
@@ -220,7 +220,7 @@ public struct SyncIO {
   ///   - timeout: The maximum time to wait for readability while scanning for the delimiter.
   /// - Returns: ``Result`` containing the collected data, or a ``SyncIO.Error`` if reading failed.
   
-  public func read ( until delimiter: UInt8, includeDelimiter: Bool, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Data, SyncIO.Error> {
+  public func read ( until delimiter: UInt8, includeDelimiter: Bool, timeout: Timeout = .indefinite ) -> Result<Data, SyncIO.Error> {
 
     var collected = [UInt8]()
     var timeout   = timeout
@@ -286,7 +286,7 @@ public struct SyncIO {
   ///   - timeout: The maximum time to wait for the descriptor to become writable.
   /// - Returns: ``Result`` containing the number of bytes written, or a ``SyncIO.Error`` describing the failure.
   
-  public func write ( _ data: Data, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Int, SyncIO.Error> {
+  public func write ( _ data: Data, timeout: Timeout = .indefinite ) -> Result<Int, SyncIO.Error> {
 
     // if you have passed zero write bytes you have certainly broken something
     // which you should fix. no silent noop for you.
