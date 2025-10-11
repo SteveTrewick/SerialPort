@@ -36,7 +36,7 @@ worth noting:
 
 ## PortManager
 
-Start by initing a PortManager, this will aloow you to enumerate and open serial ports.
+Start by initing a PortManager, this will allow you to enumerate and open serial ports.
 
 ```swift
 
@@ -52,7 +52,7 @@ If you happen to know the path of your serial port, just go ahead and
 let result = manager.open(path: "/dev/cu....")
 
 switch result {
-  case .failure(let trace): // do eomthing with the error
+  case .failure(let trace): // do something with the error
   case .success(let port ): // prepare to fling bits
 }
 ```
@@ -64,7 +64,7 @@ If you want to have a look see what serial ports are available on your mac, do .
 let result = manager.enumeratePorts()
 
 switch result {
-  case .failure(let trace): // do eomthing with the error
+  case .failure(let trace): // do something with the error
   case .success(let ports): // here is a list of SerialDevices (see below)
 }
 
@@ -103,7 +103,7 @@ switch result {
 
 ## Configuring
 
-Congratulations! You are now in posession of a fully operational serial port!
+Congratulations! You are now in possession of a fully operational serial port!
 
 Now you will need to configure it.
 
