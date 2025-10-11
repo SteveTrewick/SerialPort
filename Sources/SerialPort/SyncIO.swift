@@ -84,7 +84,7 @@ public struct SyncIO {
       if let error = check ( poll.timeout ( timeout, for: .read ) ) { return .failure(error) }
       
       // try to read some bytes
-      let bytes_read = buffer.withUnsafeMutableBytes { buffer in
+      let bytes_read = buffer.withUnsafeMutableBytes { buffer -> Int in
         guard let base = buffer.baseAddress else {
           errno = EFAULT
           return -1
@@ -168,7 +168,7 @@ public struct SyncIO {
       
       // attempt a read
       let capacity = buffer.count // we need to pull this out because we can't refer to buffer inside the unsafe
-      let bytes_read = buffer.withUnsafeMutableBytes { buffer in
+      let bytes_read = buffer.withUnsafeMutableBytes { buffer -> Int in
         guard let base = buffer.baseAddress else {
           errno = EFAULT
           return -1
