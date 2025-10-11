@@ -32,7 +32,7 @@ public struct Timeout : Equatable {
   /// - Parameter millis: The number of milliseconds to wait before giving up.
   /// - Returns: A timeout representing the requested delay.
 
-  public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
+  public static func milliseconds ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
 
 
 
@@ -52,6 +52,6 @@ public struct Timeout : Equatable {
     let milliseconds = Int ( ( interval * 1000 ).rounded (.up) )
     let clamped      = min ( Int ( Int32.max ), milliseconds )
 
-    return .wait ( Int32 ( clamped ) )
+    return .milliseconds ( Int32 ( clamped ) )
   }
 }
