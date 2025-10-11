@@ -99,6 +99,16 @@ public struct PosixPolling {
   
   func poll_descriptor ( _ descriptor: Int32, for event: Event, timeout: Timeout ) -> PollOutcome {
     
+    /*
+      there is, sadly, no ppoll on macOS (or BSD, I think) so we need to do some manual
+      timekeeping here. EINTR, EAGAIN or EWOULDBLOCK can all cause our poll to exit
+      before the timeout is done and we might miss the descriptor becoming ready,
+      especially if timeout == .indefinite and we don't want that.
+     
+      If we encounter one of these errors we loop and retry - *but* we burn some of
+      the timeout instead of blindly reapplying it so we don't get stuck forever or
+      for much longer than we sepcified.
+    */
     
     var state   = pollfd ( fd: descriptor, events: event.flag, revents: 0 )
     var timeout = timeout
@@ -112,21 +122,26 @@ public struct PosixPolling {
       
       // error reported, but ...
       if status < 0 {
+        // we go again
         if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK {
           timeout = timeout.decrement ( elapsed: clock.elapsed() ) // so we can't loop forever
           errno   = 0                                              // clear the error
           continue
         }
 
+        // we go home
         if errno == EBADF || errno == EPIPE {
           errno = 0
-          return .closed
+          return .closed // rude!
         }
 
+        // we go home with a mystery box
         return .error ( .posix ( self, tag: event.tag ) )
       }
 
-      return status > 0 ? .ready : .timeout
+      // we made but ...
+      return status > 0 ? .ready       // yay
+                        : .timeout     // boooo
     }
   }
   
