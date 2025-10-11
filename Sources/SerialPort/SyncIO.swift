@@ -64,22 +64,19 @@ public struct SyncIO {
       
       // are we in error (we are, because bytes_read < 0)
       if errno != 0 {
-        // if it's EINTR, we're going round again, but we need to decrement our
+        
+        // if it's EINTR & co, we're going round again, but we need to decrement our
         // timeout as we have used some of it
-        if errno == EINTR {
+        if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK {
           timeout = timeout.decrement ( elapsed: clock.elapsed() )
           errno = 0
           continue
         }
 
-        if errno == EAGAIN || errno == EWOULDBLOCK {
-          timeout = timeout.decrement ( elapsed: clock.elapsed() )
-          errno = 0
-          continue
-        }
-
+        // rude!
         if errno == EPIPE || errno == EBADF { return .failure ( .closed ) }
 
+        // bork
         else { return  .failure( .error( .posix(self, tag: "serial read")) ) } // all is lost
       }
       
@@ -122,24 +119,22 @@ public struct SyncIO {
         posix_read(descriptor, buffer.baseAddress, capacity)
       }
       
-      // error. if it's EINTR just loop but decrement the timeout
+      // error.
       if bytes_read < 0 {
-        if errno == EINTR {
+
+        // if its one of these, we burn some time and go again, repolling if we
+        // haven't started collecting chars yet.
+        if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK {
           timeout     = timeout.decrement(elapsed: clock.elapsed() )
           should_wait = collected.isEmpty
           errno = 0
           continue
         }
 
-        if errno == EAGAIN || errno == EWOULDBLOCK {
-          timeout     = timeout.decrement(elapsed: clock.elapsed() )
-          should_wait = collected.isEmpty
-          errno = 0
-          continue
-        }
-
+        // rude!
         if errno == EPIPE || errno == EBADF { return .failure ( .closed ) }
 
+        // bork
         else { return .failure(.error(.posix(self, tag: "serial read"))) }
       }
       
@@ -192,22 +187,18 @@ public struct SyncIO {
 
       // we are in error
       if errno != 0 {
-        // but it's EINTR so #yolo, let's go again but burn some timeout
-        // Not sure we actually need to do this as we decrement every time through the poll
-        if errno == EINTR {
+        
+        // but it's EINTR or its chums so #yolo, let's go again but burn some timeout
+        if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK {
           timeout = timeout.decrement ( elapsed: clock.elapsed() )
           errno = 0
           continue
         }
-
-        if errno == EAGAIN || errno == EWOULDBLOCK {
-          timeout = timeout.decrement ( elapsed: clock.elapsed() )
-          errno = 0
-          continue
-        }
-
+        
+        // rude!
         if errno == EPIPE || errno == EBADF { return .failure ( .closed ) }
 
+        // bork
         else { return .failure ( .error ( .posix ( self, tag: "serial read" ) ) ) }
       }
     }
@@ -217,6 +208,8 @@ public struct SyncIO {
   
   public func write ( _ data: Data, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Int, SyncIO.Error> {
 
+    // if you have passed zero write bytes you have certainly broken something
+    // which you should fix. no silent noop for you.
     guard data.count > 0 else {
       return .failure (
         .error ( .trace (self, tag: "data.count muxt be > 0" ) )
@@ -226,45 +219,48 @@ public struct SyncIO {
     var total_written = 0
     var timeout       = timeout
     var clock         = TimeoutClock()
-    let length        = data.count
+    let length        = data.count // we can't refer back to data in the unsafe closure
 
     while total_written < length {
 
+      // poll, check for error and bail if we get one
       if let error = check ( poll.timeout ( timeout, for: .write ) ) { return .failure ( error ) }
 
+      // burn the timer becuase the timeout covers the whole write
       timeout = timeout.decrement ( elapsed: clock.elapsed() )
 
+      // try and write some bytes.
       let wrote : Int = data.withUnsafeBytes { buffer in
+        // TODO: are we sure, I don't /think/ this is necessary, but if it is, it is necessary elsewhere as well.
         guard let base = buffer.baseAddress else {
           errno = EFAULT
           return -1
         }
-
         return posix_write ( descriptor, base.advanced ( by: total_written ), length - total_written )
       }
 
+      // we wrote some, but did we do enough?
       if wrote > 0 {
         total_written += wrote
         continue
       }
 
-      if wrote == 0 { return .failure ( .closed ) }
+      if wrote == 0 { return .failure ( .closed ) }  // rude!
 
+      // we are in error, but which one?
       if errno != 0 {
-        if errno == EINTR {
+        
+        // if its one of these lads, we go around again
+        if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK {
           timeout = timeout.decrement ( elapsed: clock.elapsed() )
           errno = 0
           continue
         }
 
-        if errno == EAGAIN || errno == EWOULDBLOCK {
-          timeout = timeout.decrement ( elapsed: clock.elapsed() )
-          errno = 0
-          continue
-        }
-
+        // rude!
         if errno == EPIPE || errno == EBADF { return .failure ( .closed ) }
 
+        // oh dear
         return .failure ( .error ( .posix ( self, tag: "serial write" ) ) )
       }
 
