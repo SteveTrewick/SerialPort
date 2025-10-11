@@ -96,7 +96,7 @@ public class SerialPort {
     
     self.reset()              // just in case
     
-    _ = posix_close(descriptor)  // technically this returns a vaule, but there's
+    _ = posix_close(descriptor)  // technically this returns a value, but there's
                               // SFA we can do about it if it doesn't work. close more?
   }
   
@@ -110,7 +110,7 @@ public class SerialPort {
   
   
   
-  // send data, duh, apply a completion hamdelr if you need to know why its not working,
+  // send data, duh, apply a completion handler if you need to know why it's not working,
   
   public func send( data: Data, complete: ((Result<Int, Trace>) -> Void)? = nil ) {
     

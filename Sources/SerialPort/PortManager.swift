@@ -13,7 +13,7 @@ public struct SerialDevice {
 public class PortManager {
 
 
-  public init() {} // god, I always foget these
+  public init() {} // god, I always forget these
 
   // open a port.
   // notice that I am not giving the user a choice of options, this is on purpose

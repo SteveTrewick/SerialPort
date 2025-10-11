@@ -5,7 +5,7 @@ import Trace
 
 
 
-// AUthor's note - though am I, really, at this point? - This part was written by Codex and I
+// Author's note - though am I, really, at this point? - This part was written by Codex and I
 // am not at all sure that I like it
 
 
@@ -287,7 +287,7 @@ public final class AsyncIO {
 
 
 
-  //MARK: Implmentation
+  //MARK: Implementation
   
   private func installHandler() {
 
