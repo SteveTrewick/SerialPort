@@ -31,6 +31,7 @@ public struct SyncIO {
   /// Creates a synchronous I/O helper that wraps the supplied file descriptor.
   ///
   /// - Parameter descriptor: The open file descriptor representing the serial port.
+  
   public init ( descriptor : Int32 ) {
     self.descriptor = descriptor
     self.poll       = PosixPolling ( descriptor: descriptor )
@@ -44,6 +45,7 @@ public struct SyncIO {
   ///   - count: The exact number of bytes to read from the serial port. Must be positive.
   ///   - timeout: The maximum time to wait for the descriptor to become readable.
   /// - Returns: ``Result`` containing the data that was read, or a ``SyncIO.Error`` that describes why reading failed.
+ 
   public func read ( count: Int, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Data, SyncIO.Error> {
 
     // bail if we have a dumb parameter, how ya gonna read -12 bytes, dumbass
@@ -104,6 +106,7 @@ public struct SyncIO {
   ///   - timeout: The maximum time to wait for readability before the first chunk is received.
   ///   - maxbuffer: The maximum number of bytes to read per iteration while draining the descriptor.
   /// - Returns: ``Result`` containing the accumulated data, or a ``SyncIO.Error`` if reading failed.
+  
   public func read ( timeout: PosixPolling.Timeout = .indefinite, maxbuffer: Int = 1024 ) -> Result<Data, SyncIO.Error> {
     
     var collected    = [UInt8]()
@@ -175,6 +178,7 @@ public struct SyncIO {
   ///   - includeDelimiter: Whether to include the delimiter byte in the returned data.
   ///   - timeout: The maximum time to wait for readability while scanning for the delimiter.
   /// - Returns: ``Result`` containing the collected data, or a ``SyncIO.Error`` if reading failed.
+  
   public func read ( until delimiter: UInt8, includeDelimiter: Bool, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Data, SyncIO.Error> {
 
     var collected = [UInt8]()
@@ -236,6 +240,7 @@ public struct SyncIO {
   ///   - data: The bytes to write to the serial port. Must not be empty.
   ///   - timeout: The maximum time to wait for the descriptor to become writable.
   /// - Returns: ``Result`` containing the number of bytes written, or a ``SyncIO.Error`` describing the failure.
+  
   public func write ( _ data: Data, timeout: PosixPolling.Timeout = .indefinite ) -> Result<Int, SyncIO.Error> {
 
     // if you have passed zero write bytes you have certainly broken something
@@ -303,6 +308,7 @@ public struct SyncIO {
   ///
   /// - Parameter outcome: The result of polling the descriptor for readiness.
   /// - Returns: ``SyncIO.Error`` when the descriptor is not ready, or `nil` when it is.
+  
   func check ( _ outcome: PosixPolling.PollOutcome ) -> SyncIO.Error? {
     switch outcome {
       case .ready               : return nil

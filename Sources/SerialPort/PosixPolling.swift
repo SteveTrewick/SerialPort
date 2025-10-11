@@ -14,10 +14,8 @@ public struct PosixPolling {
   
   /// Represents a poll timeout in milliseconds, including convenience constructors.
   public struct Timeout : Equatable {
-    // model the timeout behaviour, polling is either immediate or with a timeout defined in µseconds
     
-    let milliseconds : Int32
-    
+    let milliseconds : Int32 // we roll in millis, not seconds like some caveman. wall time is for fleshys.
 
     
     /// Reduces the timeout by the elapsed duration while respecting indefinite waits.
@@ -27,6 +25,7 @@ public struct PosixPolling {
     ///
     /// if we indefinite, do nothing, we burn eternal
     /// otherwise, subtract some millis but don't go below 0
+    
     func decrement ( elapsed: Int ) -> Timeout {
       self == .indefinite ? .indefinite
                           : Timeout (milliseconds: Int32 ( max ( Int(milliseconds) - elapsed, 0 ) ))
@@ -36,12 +35,14 @@ public struct PosixPolling {
     // MARK: Convenience constructors
     
     public static var  zero       : Timeout = Timeout ( milliseconds:  0 )
-    public static var  indefinite : Timeout = Timeout ( milliseconds: -1 )
+    public static var  indefinite : Timeout = Timeout ( milliseconds: -1 ) // wait 4eva
+    
     
     /// Creates a timeout that waits for the specified number of milliseconds.
     ///
     /// - Parameter millis: The number of milliseconds to wait before giving up.
     /// - Returns: A timeout representing the requested delay.
+    
     public static func wait ( _ millis: Int32 ) -> Timeout { Timeout ( milliseconds: millis ) }
 
     
@@ -53,6 +54,7 @@ public struct PosixPolling {
     ///
     /// I actually don't like this because you can multiply x 1000 in your head,
     /// but codex has added it as a last act of defiance. Anyway, have some seconds.
+    
     public static func seconds ( _ interval: TimeInterval ) -> Timeout {
 
       if interval.isInfinite { return .indefinite }
@@ -107,6 +109,7 @@ public struct PosixPolling {
   ///   - timeout: The maximum amount of time to wait for the event.
   ///   - event: The readiness event to monitor on the descriptor.
   /// - Returns: The outcome of polling for the requested event.
+  
   public func timeout ( _ timeout: Timeout, for event: Event ) -> PollOutcome {
     poll_descriptor ( descriptor, for: event, timeout: timeout )
   }
@@ -116,6 +119,7 @@ public struct PosixPolling {
   ///
   /// - Parameter event: The readiness event to probe immediately on the descriptor.
   /// - Returns: The outcome when polling without allowing the descriptor to block.
+  
   public func immediate ( for event: Event ) -> ImmediatePollOutcome {
     switch poll_descriptor ( descriptor, for: event, timeout: .zero ) {
       case .ready             : return .ready
@@ -126,7 +130,7 @@ public struct PosixPolling {
   }
   
   
-  // MARK: internal implmentation
+  // MARK: internal implementation
   
 
 
@@ -137,6 +141,7 @@ public struct PosixPolling {
   ///   - event: The readiness event to wait for.
   ///   - timeout: The maximum amount of time to wait for the event.
   /// - Returns: The resulting outcome after polling with the supplied parameters.
+  
   func poll_descriptor ( _ descriptor: Int32, for event: Event, timeout: Timeout ) -> PollOutcome {
     
     /*
