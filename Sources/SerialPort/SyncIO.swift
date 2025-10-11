@@ -194,51 +194,54 @@ public struct SyncIO {
       )
     }
     
-    return data.withUnsafeBytes { buffer -> Result<Int, SyncIO.Error> in
-      guard let base = buffer.baseAddress else { return .success ( 0 ) }// TODO: WTF?
+    var total_written = 0
+    var timeout       = timeout
+    var clock         = TimeoutClock()
+    let length        = data.count
 
-      var total_written = 0
-      var timeout       = timeout
-      var clock         = TimeoutClock()
-      let length        = buffer.count
+    while total_written < length {
 
-      while total_written < length {
-        
-        if let error = check ( poll.timeout ( timeout, for: .write ) ) { return .failure ( error ) }
-        
-        timeout = timeout.decrement ( elapsed: clock.elapsed() )
+      if let error = check ( poll.timeout ( timeout, for: .write ) ) { return .failure ( error ) }
 
-        
-        let wrote = posix_write ( descriptor, base.advanced ( by: total_written ), length - total_written )
+      timeout = timeout.decrement ( elapsed: clock.elapsed() )
 
-        if wrote > 0 {
-          total_written += wrote
+      let wrote : Int = data.withUnsafeBytes { buffer in
+        guard let base = buffer.baseAddress else {
+          errno = EFAULT
+          return -1
+        }
+
+        return posix_write ( descriptor, base.advanced ( by: total_written ), length - total_written )
+      }
+
+      if wrote > 0 {
+        total_written += wrote
+        continue
+      }
+
+      if wrote == 0 { return .failure ( .closed ) }
+
+      if errno != 0 {
+        if errno == EINTR {
+          timeout = timeout.decrement ( elapsed: clock.elapsed() )
+          errno = 0
           continue
         }
 
-        if wrote == 0 { return .failure ( .closed ) }
-
-        if errno != 0 {
-          if errno == EINTR {
-            timeout = timeout.decrement ( elapsed: clock.elapsed() )
-            errno = 0
-            continue
-          }
-
-          if errno == EAGAIN || errno == EWOULDBLOCK {
-            timeout = timeout.decrement ( elapsed: clock.elapsed() )
-            errno = 0
-            continue
-          }
-
-          if errno == EPIPE || errno == EBADF { return .failure ( .closed ) }
-
-          return .failure ( .error ( .posix ( self, tag: "serial write" ) ) )
+        if errno == EAGAIN || errno == EWOULDBLOCK {
+          timeout = timeout.decrement ( elapsed: clock.elapsed() )
+          errno = 0
+          continue
         }
+
+        if errno == EPIPE || errno == EBADF { return .failure ( .closed ) }
+
+        return .failure ( .error ( .posix ( self, tag: "serial write" ) ) )
       }
 
-      return .success ( total_written )
     }
+
+    return .success ( total_written )
   }
 
   // convert a poll outcome to a SyncIO.Error (or nil, if no error)
